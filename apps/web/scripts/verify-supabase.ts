@@ -4,8 +4,19 @@ import { fileURLToPath } from 'node:url';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(currentDir, '../../..');
+const isCi = process.env.CI === 'true';
 
 loadEnvConfig(repoRoot);
+
+function failOrWarn(message: string): void {
+  if (isCi) {
+    console.error(message);
+    process.exit(1);
+  }
+
+  console.warn(message);
+  console.warn('⚠️ Continuing local build because Supabase network verification is only strict in CI.');
+}
 
 async function verifySupabaseConnection() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,14 +41,14 @@ async function verifySupabaseConnection() {
 
     if (!response.ok) {
       const message = await response.text();
-      console.error('❌ Supabase connection failed:', message || response.statusText);
-      process.exit(1);
+      failOrWarn(`❌ Supabase connection failed: ${message || response.statusText}`);
+      return;
     }
 
     console.log('✅ Supabase connection successful.');
-  } catch (err: any) {
-    console.error('❌ Unexpected error during Supabase connection check:', err.message);
-    process.exit(1);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown network error';
+    failOrWarn(`❌ Unexpected error during Supabase connection check: ${message}`);
   }
 }
 
