@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, use, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardFooter
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,18 +19,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  ArrowLeft,
   Search,
   Filter,
-  ExternalLink,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  Flag,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { verificationService } from '@/services/verification';
+import { VerificationSession, VerificationStats } from '@/types/verification';
 
 interface Claim {
   id: string;
@@ -43,26 +37,25 @@ interface Claim {
   status: string;
 }
 
-export default function VerificationQueuePage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const caseId = resolvedParams.id;
+export default function VerificationQueuePage({ params }: { params: { id: string } }) {
+  const caseId = params.id;
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter] = useState('ALL');
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<VerificationStats | null>(null);
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'RWF' }).format(value);
-}
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [fetchedStats, fetchedQueue] = await Promise.all([
+        verificationService.getVerificationStats(caseId),
+        verificationService.getVerificationQueue(caseId)
+      ]);
 
-export default async function CaseVerificationPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: caseId } = await params;
-  const [queue, stats] = await Promise.all([
-    verificationService.getVerificationQueue(caseId),
-    verificationService.getVerificationStats(caseId),
-  ]);
+      setStats(fetchedStats);
 
-      if (error || !data || data.length === 0) {
+      if (fetchedQueue.length === 0) {
         // Fallback to mock for demo
         setClaims([
           {
@@ -107,76 +100,165 @@ export default async function CaseVerificationPage({ params }: { params: Promise
           }
         ]);
       } else {
-        setClaims(data.map((c: any) => ({
-          id: c.id,
-          claimNumber: c.claim_number,
-          patientName: c.patient_name,
-          practitionerName: c.practitioner_name,
-          insuranceAmount: c.insurance_copayment,
-          status: c.status
+        setClaims(fetchedQueue.map((session: VerificationSession) => ({
+          id: session.claim.id,
+          claimNumber: session.claim.claim_number,
+          patientName: session.claim.patient_name,
+          practitionerName: session.claim.practitioner_name || 'N/A',
+          insuranceAmount: session.claim.insurance_copayment || 0,
+          status: session.claim.status
         })));
       }
+    } catch (error) {
+      console.error('Error fetching verification queue:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [caseId]);
+
+  const formatCurrency = (value: number): string => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'RWF' }).format(value);
+  };
+
+  const filteredClaims = claims.filter(claim => {
+    const matchesSearch =
+      claim.claimNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      claim.patientName.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus = statusFilter === 'ALL' || claim.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+      </div>
+    );
   }
 
   return (
     <main className="space-y-6 p-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Verification Workspace</h1>
-        <p className="mt-2 text-slate-500">Case ID: {caseId}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <Link className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1 mb-2" href="/cases">
+            <ArrowLeft className="h-4 w-4" /> Back to Cases
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight">Verification Workspace</h1>
+          <p className="text-slate-500">Case ID: {caseId}</p>
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader><CardTitle>Total Claims</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{stats.totalClaims}</CardContent>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Total Claims</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.totalClaims || claims.length}</div>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Verified</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{stats.verifiedClaims}</CardContent>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Verified</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats?.verifiedClaims || claims.filter(c => c.status === 'VERIFIED').length}</div>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Flagged</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{stats.flaggedClaims}</CardContent>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Flagged</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats?.flaggedClaims || claims.filter(c => c.status === 'FLAGGED').length}</div>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Adjustments</CardTitle></CardHeader>
-          <CardContent className="text-2xl font-bold">{formatCurrency(stats.totalAdjustments)}</CardContent>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Adjustments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{formatCurrency(stats?.totalAdjustments || 0)}</div>
+          </CardContent>
         </Card>
       </section>
 
       <Card>
         <CardHeader>
-          <CardTitle>Verification Queue</CardTitle>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <CardTitle>Verification Queue</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search claims..."
+                  className="pl-8 w-[250px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" size="icon">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Claim Number</TableHead>
-                <TableHead>Patient</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {queue.map((session: VerificationSession) => (
-                <TableRow key={session.id}>
-                  <TableCell>
-                    <Link className="font-medium text-blue-600" href={`/cases/${caseId}/verification/${session.claim.id}`}>
-                      {session.claim.claim_number}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{session.claim.patient_name}</TableCell>
-                  <TableCell><Badge variant="outline">{session.claim.status}</Badge></TableCell>
-                  <TableCell className="text-right">{formatCurrency(session.claim.total_amount)}</TableCell>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Claim Number</TableHead>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Practitioner</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {queue.length === 0 && <p className="py-6 text-center text-sm text-slate-500">No claims are queued for this case.</p>}
+              </TableHeader>
+              <TableBody>
+                {filteredClaims.map((claim) => (
+                  <TableRow key={claim.id}>
+                    <TableCell className="font-medium">{claim.claimNumber}</TableCell>
+                    <TableCell>{claim.patientName}</TableCell>
+                    <TableCell>{claim.practitionerName}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          claim.status === 'VERIFIED' ? 'default' :
+                          claim.status === 'FLAGGED' ? 'destructive' :
+                          claim.status === 'IN_PROGRESS' ? 'secondary' : 'outline'
+                        }
+                      >
+                        {claim.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(claim.insuranceAmount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link href={`/cases/${caseId}/verification/${claim.id}`}>
+                          Review
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {filteredClaims.length === 0 && (
+            <div className="text-center py-10 text-slate-500">
+              No claims found matching your criteria.
+            </div>
+          )}
         </CardContent>
       </Card>
     </main>

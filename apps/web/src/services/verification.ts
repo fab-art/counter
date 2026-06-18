@@ -10,6 +10,8 @@ import type {
   VerificationStats,
 } from '@/types/verification';
 
+export type { Claim, Finding, VerificationSession, VerificationStats };
+
 type ClaimUpdate = Database['public']['Tables']['claims']['Update'];
 type FindingInsert = Database['public']['Tables']['findings']['Insert'];
 type OfficerMetricsRow = Database['public']['Tables']['officer_metrics']['Row'];
