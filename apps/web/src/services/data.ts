@@ -16,9 +16,10 @@ export const dataService = {
 
       if (error) throw error;
       return { data: data as Tables['facilities']['Row'][], error: null };
-    } catch (error: any) {
-      console.error('Error fetching facilities:', error);
-      return { data: null, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching facilities:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -38,10 +39,11 @@ export const dataService = {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return { data: data as any[], error: null };
-    } catch (error: any) {
-      console.error('Error fetching claims:', error);
-      return { data: null, error: error.message };
+      return { data: data as unknown[], error: null };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching claims:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -60,10 +62,11 @@ export const dataService = {
         .order('priority', { ascending: false });
 
       if (error) throw error;
-      return { data: data as any[], error: null };
-    } catch (error: any) {
-      console.error('Error fetching verification queue:', error);
-      return { data: null, error: error.message };
+      return { data: data as unknown[], error: null };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching verification queue:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -90,9 +93,10 @@ export const dataService = {
         },
         error: null,
       };
-    } catch (error: any) {
-      console.error('Error fetching dashboard data:', error);
-      return { data: null, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching dashboard data:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -109,9 +113,10 @@ export const dataService = {
 
       if (error) throw error;
       return { data: data as Tables['uploads']['Row'], error: null };
-    } catch (error: any) {
-      console.error('Error creating upload:', error);
-      return { data: null, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error creating upload:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -128,9 +133,10 @@ export const dataService = {
 
       if (error) throw error;
       return { data: data as Tables['claims']['Row'], error: null };
-    } catch (error: any) {
-      console.error('Error creating claim:', error);
-      return { data: null, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error creating claim:', message);
+      return { data: null, error: message };
     }
   },
 
@@ -151,9 +157,10 @@ export const dataService = {
 
       if (error) throw error;
       return { data: data as Tables['verification_results']['Row'], error: null };
-    } catch (error: any) {
-      console.error('Error updating verification result:', error);
-      return { data: null, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Error updating verification result:', message);
+      return { data: null, error: message };
     }
   }
 };
