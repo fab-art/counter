@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { supabase } from '@/lib/supabase';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // MOCK AUTH CHECK
-  // In a real app, we would check the Supabase session cookie
   const authToken = request.cookies.get('sb-access-token')?.value;
   const isAuthPage = pathname.startsWith('/login') ||
                      pathname.startsWith('/forgot-password') ||
@@ -21,18 +20,45 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
+  // Role-based protection
+  // In a real production app, we would verify the JWT and check the role claim
+  // Since we are using Supabase, we can check the user's role from the metadata or a database call
+  // For the pilot middleware, we will enforce a strict check for admin routes
+  if (authToken) {
+    const adminRoutes = ['/users', '/settings'];
+    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+
+    if (isAdminRoute) {
+        // Here we'd ideally verify the token.
+        // For the pilot, we'll assume the client-side role check handles the UI
+        // and the RLS handles the data, but the middleware provides the route guard.
+        // To be secure, we should fetch the user from Supabase.
+        const { data: { user } } = await supabase.auth.getUser(authToken);
+
+        if (!user) {
+            return NextResponse.redirect(new URL('/login', request.url));
+        }
+
+        // Fetch role from database
+        const { data: roleData } = await supabase
+            .from('user_roles')
+            .select('roles(name)')
+            .eq('user_id', user.id)
+            .single();
+
+        const role = (roleData as any)?.roles?.name;
+
+        if (role !== 'ADMIN') {
+            return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
+    }
+  }
+
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

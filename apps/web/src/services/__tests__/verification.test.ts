@@ -17,6 +17,9 @@ vi.mock('@/lib/supabase', () => ({
       order: vi.fn().mockReturnThis(),
       returns: vi.fn().mockReturnThis(),
     })),
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
+    }
   },
 }));
 
@@ -41,22 +44,19 @@ describe('verificationService', () => {
     expect(verificationService.getOfficerPerformance).toBeDefined();
   });
 
-  // Since we are mostly mocking Supabase and the logic depends on its response,
-  // we focus on verifying that the service methods call Supabase correctly.
-
   it('calls supabase.from("findings").insert when createFinding is called', async () => {
     const fromSpy = vi.spyOn(supabase, 'from');
 
     const input = {
-      claimId: 'claim-1',
-      caseId: 'case-1',
-      category: 'PHARMACOLOGY',
+      claimId: '00000000-0000-0000-0000-000000000001',
+      caseId: '00000000-0000-0000-0000-000000000001',
+      category: 'PHARMACOLOGY' as const,
       findingType: 'Overprescribing',
       description: 'Test finding',
       adjustmentAmount: 5000,
       severity: 'MEDIUM',
       status: 'OPEN',
-      createdBy: 'user-1',
+      createdBy: '00000000-0000-0000-0000-000000000001',
     };
 
     try {
@@ -72,7 +72,7 @@ describe('verificationService', () => {
     const fromSpy = vi.spyOn(supabase, 'from');
 
     try {
-      await verificationService.updateClaimStatus('claim-1', 'VERIFIED');
+      await verificationService.updateClaimStatus('00000000-0000-0000-0000-000000000001', 'VERIFIED');
     } catch {
       // Ignore errors
     }

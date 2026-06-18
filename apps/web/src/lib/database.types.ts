@@ -125,6 +125,16 @@ export interface Database {
         { id?: string; user_id: string; action: string; details?: Json | null; created_at?: string },
         { id?: string; user_id?: string; action?: string; details?: Json | null; created_at?: string }
       >
+      user_roles: TableDefinition<
+        { user_id: string; role_id: string },
+        { user_id: string; role_id: string },
+        { user_id?: string; role_id?: string }
+      >
+      notifications: TableDefinition<
+        { id: string; user_id: string; title: string; message: string; is_read: boolean; type: string; link: string | null; created_at: string },
+        { id?: string; user_id: string; title: string; message: string; is_read?: boolean; type?: string; link?: string | null; created_at?: string },
+        { id?: string; user_id?: string; title?: string; message?: string; is_read?: boolean; type?: string; link?: string | null; created_at?: string }
+      >
     }
     Views: {
       [_ in never]: never

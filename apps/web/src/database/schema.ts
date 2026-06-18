@@ -58,6 +58,16 @@ export const users = pgTable('users', {
   deletedAt: timestamp('deleted_at'),
 });
 
+export const profiles = pgTable('profiles', {
+  id: uuid('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  fullName: varchar('full_name', { length: 255 }),
+  avatarUrl: text('avatar_url'),
+  role: roleEnum('role').default('TECHNICAL_OFFICER').notNull(),
+  facilityId: uuid('facility_id').references(() => facilities.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const roles = pgTable('roles', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: roleEnum('name').notNull().unique(),

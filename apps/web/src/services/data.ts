@@ -25,15 +25,43 @@ export const dataService = {
   /**
    * Fetch claims with optional filtering
    */
-  async getClaims(limit = 50) {
+  async getClaims(filters: {
+    claimNumber?: string;
+    patientId?: string;
+    facilityId?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  } = {}, limit = 50) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('claims')
         .select(`
           *,
           facilities(name),
           verification_results(status, score)
-        `)
+        `);
+
+      if (filters.claimNumber) {
+        query = query.ilike('claim_number', `%${filters.claimNumber}%`);
+      }
+      if (filters.patientId) {
+        query = query.eq('patient_id', filters.patientId);
+      }
+      if (filters.facilityId && filters.facilityId !== 'ALL') {
+        query = query.eq('facility_id', filters.facilityId);
+      }
+      if (filters.status && filters.status !== 'ALL') {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.startDate) {
+        query = query.gte('dispensing_date', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('dispensing_date', filters.endDate);
+      }
+
+      const { data, error } = await query
         .limit(limit)
         .order('created_at', { ascending: false });
 
@@ -72,14 +100,20 @@ export const dataService = {
    */
   async getVerificationDashboard() {
     try {
-      const [totalRes, pendingRes, verifiedRes] = await Promise.all([
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+
+      const [totalRes, pendingRes, verifiedRes, todayVerifiedRes, metricsRes] = await Promise.all([
         supabase.from('claims').select('*', { count: 'exact', head: true }),
-        supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'verified'),
+        supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'UNREVIEWED'),
+        supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'VERIFIED'),
+        supabase.from('claims').select('*', { count: 'exact', head: true }).eq('status', 'VERIFIED').gte('updated_at', todayStr),
+        supabase.from('officer_metrics').select('*').limit(5),
       ]);
 
-      if (totalRes.error || pendingRes.error || verifiedRes.error) {
-        throw totalRes.error || pendingRes.error || verifiedRes.error;
+      if (totalRes.error || pendingRes.error || verifiedRes.error || todayVerifiedRes.error || metricsRes.error) {
+        throw totalRes.error || pendingRes.error || verifiedRes.error || todayVerifiedRes.error || metricsRes.error;
       }
 
       return {
@@ -87,6 +121,8 @@ export const dataService = {
           total: totalRes.count || 0,
           pending: pendingRes.count || 0,
           verified: verifiedRes.count || 0,
+          verifiedToday: todayVerifiedRes.count || 0,
+          officerMetrics: metricsRes.data || [],
         },
         error: null,
       };
