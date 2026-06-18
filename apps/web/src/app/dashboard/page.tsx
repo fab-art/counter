@@ -24,7 +24,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   LineChart,
-  Line
+  Line,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 
 const stats = [
@@ -37,20 +40,20 @@ const stats = [
     bg: 'bg-blue-100'
   },
   {
-    title: 'Cases Completed',
-    value: '86',
+    title: 'Claims Reviewed',
+    value: '4,520',
     icon: CheckCircle2,
-    trend: '+5%',
+    trend: '+25%',
     color: 'text-green-600',
     bg: 'bg-green-100'
   },
   {
-    title: 'Pending Review',
-    value: '38',
-    icon: Clock,
-    trend: '-2%',
-    color: 'text-amber-600',
-    bg: 'bg-amber-100'
+    title: 'Total Deductions',
+    value: '12.4M',
+    icon: TrendingUp,
+    trend: '+8%',
+    color: 'text-indigo-600',
+    bg: 'bg-indigo-100'
   },
   {
     title: 'Urgent Cases',
@@ -79,6 +82,20 @@ const lineData = [
   { name: 'Apr', value: 800 },
   { name: 'May', value: 500 },
   { name: 'Jun', value: 900 },
+];
+
+const categoryData = [
+  { name: 'Pharmacology', value: 2400000, color: '#4f46e5' },
+  { name: 'RSSB Rules', value: 1100000, color: '#10b981' },
+  { name: 'Fraud', value: 700000, color: '#ef4444' },
+  { name: 'Documentation', value: 400000, color: '#f59e0b' },
+];
+
+const officerData = [
+  { name: 'Officer A', claims: 200, deductions: 350000 },
+  { name: 'Officer B', claims: 180, deductions: 280000 },
+  { name: 'Officer C', claims: 250, deductions: 410000 },
+  { name: 'Officer D', claims: 150, deductions: 190000 },
 ];
 
 export default function DashboardPage() {
@@ -114,46 +131,96 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Verification Progress</CardTitle>
-            <CardDescription>Cases completed vs pending this week</CardDescription>
+            <CardDescription>Case review completion across active cases</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="completed" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="pending" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-6">
+            <div>
+              <div className="flex justify-between mb-2 text-sm">
+                <span className="font-medium">Case #CV-2024-001 (Pharmacy A)</span>
+                <span className="text-slate-500">450/1000 claims</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-2 text-sm">
+                <span className="font-medium">Case #CV-2024-002 (Clinic B)</span>
+                <span className="text-slate-500">820/900 claims</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '91%' }}></div>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between mb-2 text-sm">
+                <span className="font-medium">Case #CV-2024-003 (Pharmacy C)</span>
+                <span className="text-slate-500">120/1500 claims</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '8%' }}></div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Case Volume Trends</CardTitle>
-            <CardDescription>Monthly referral volume</CardDescription>
+            <CardTitle>Deduction Category Analysis</CardTitle>
+            <CardDescription>Distribution of findings by category (RWF)</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px]">
+          <CardContent className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lineData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Line
-                  type="monotone"
+              <PieChart>
+                <Pie
+                  data={categoryData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
                   dataKey="value"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={{ r: 4 }}
+                >
+                  {categoryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                   formatter={(value: number) => `${value.toLocaleString()} RWF`}
                 />
-              </LineChart>
+              </PieChart>
             </ResponsiveContainer>
+            <div className="flex justify-center gap-4 mt-4">
+               {categoryData.map((item) => (
+                 <div key={item.name} className="flex items-center gap-1.5">
+                   <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                   <span className="text-xs text-slate-500">{item.name}</span>
+                 </div>
+               ))}
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Officer Productivity</CardTitle>
+          <CardDescription>Comparison of claims reviewed and deductions identified</CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={officerData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" />
+              <YAxis yAxisId="left" orientation="left" stroke="#4f46e5" />
+              <YAxis yAxisId="right" orientation="right" stroke="#10b981" />
+              <Tooltip />
+              <Bar yAxisId="left" dataKey="claims" name="Claims Reviewed" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="right" dataKey="deductions" name="Deductions (RWF)" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
