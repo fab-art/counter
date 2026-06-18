@@ -1,152 +1,226 @@
 import { supabase } from '@/lib/supabase';
+import type { Database } from '@/lib/database.types';
+import type {
+  Claim,
+  ClaimVerificationDetail,
+  Finding,
+  FindingInput,
+  OfficerPerformance,
+  VerificationSession,
+  VerificationStats,
+} from '@/types/verification';
 
-export interface Finding {
-  category: 'PHARMACOLOGY' | 'RSSB_RULES' | 'FRAUD' | 'DOCUMENTATION';
-  findingType: string;
-  description?: string;
-  adjustmentAmount: number;
+type ClaimUpdate = Database['public']['Tables']['claims']['Update'];
+type FindingInsert = Database['public']['Tables']['findings']['Insert'];
+type OfficerMetricsRow = Database['public']['Tables']['officer_metrics']['Row'];
+
+interface VerificationQueueRecord {
+  id: string;
+  claim_id: string;
+  batch_id: string | null;
+  priority: number;
+  status: string;
+  assigned_to: string | null;
+  created_at: string;
+  claims: Claim | null;
 }
 
-/**
- * Service to handle verification business logic
- */
+function toVerificationSession(record: VerificationQueueRecord): VerificationSession | null {
+  if (!record.claims) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    claim_id: record.claim_id,
+    batch_id: record.batch_id,
+    priority: record.priority,
+    status: record.status,
+    assigned_to: record.assigned_to,
+    created_at: record.created_at,
+    claim: record.claims,
+  };
+}
+
+function sumAdjustments(findings: Finding[]): number {
+  return findings.reduce((total, finding) => total + finding.adjustment_amount, 0);
+}
+
+function buildStats(caseId: string, claims: Claim[], findings: Finding[]): VerificationStats {
+  const totalAdjustments = sumAdjustments(findings);
+  const originalAmount = claims.reduce((total, claim) => total + claim.total_amount, 0);
+
+  return {
+    caseId,
+    totalClaims: claims.length,
+    unreviewedClaims: claims.filter((claim) => claim.status === 'UNREVIEWED').length,
+    inProgressClaims: claims.filter((claim) => claim.status === 'IN_PROGRESS').length,
+    verifiedClaims: claims.filter((claim) => claim.status === 'VERIFIED').length,
+    flaggedClaims: claims.filter((claim) => claim.status === 'FLAGGED').length,
+    totalFindings: findings.length,
+    totalAdjustments,
+    verifiedAmount: Math.max(originalAmount - totalAdjustments, 0),
+  };
+}
+
 export const verificationService = {
-  /**
-   * Adds a finding to a claim and updates the summary
-   */
-  async addFinding(caseId: string, claimId: string, finding: Finding, userId: string) {
-    // 1. Insert finding
-    const { data: findingData, error: findingError } = await supabase
-      .from('findings')
-      .insert({
-        case_id: caseId,
-        claim_id: claimId,
-        category: finding.category,
-        finding_type: finding.findingType,
-        description: finding.description,
-        adjustment_amount: finding.adjustmentAmount,
-        created_by_id: userId,
-      })
-      .select()
-      .single();
+  async getVerificationQueue(caseId: string): Promise<VerificationSession[]> {
+    const { data, error } = await supabase
+      .from('verification_queue')
+      .select('id, claim_id, batch_id, priority, status, assigned_to, created_at, claims(*)')
+      .eq('claims.case_id', caseId)
+      .order('priority', { ascending: false })
+      .returns<VerificationQueueRecord[]>();
 
-    if (findingError) throw findingError;
-
-    // 2. Update claim verification summary
-    await this.refreshClaimSummary(claimId);
-
-    return findingData;
-  },
-
-  /**
-   * Removes a finding and refreshes the summary
-   */
-  async removeFinding(claimId: string, findingId: string) {
-    const { error } = await supabase
-      .from('findings')
-      .delete()
-      .eq('id', findingId);
-
-    if (error) throw error;
-
-    await this.refreshClaimSummary(claimId);
-  },
-
-  /**
-   * Recalculates and updates the verification summary for a claim
-   */
-  async refreshClaimSummary(claimId: string) {
-    // Get all findings for this claim
-    const { data: findings, error: findingsError } = await supabase
-      .from('findings')
-      .select('adjustment_amount')
-      .eq('claim_id', claimId);
-
-    if (findingsError) throw findingsError;
-
-    // Get the claim's original insurance copayment
-    const { data: claim, error: claimError } = await supabase
-      .from('claims')
-      .select('insurance_copayment, status')
-      .eq('id', claimId)
-      .single();
-
-    if (claimError) throw claimError;
-
-    const totalAdjustments = findings.reduce((sum, f) => sum + (f.adjustment_amount || 0), 0);
-    const verifiedAmount = claim.insurance_copayment - totalAdjustments;
-
-    // Update or insert summary
-    const { error: summaryError } = await supabase
-      .from('claim_verification_summary')
-      .upsert({
-        claim_id: claimId,
-        original_amount: claim.insurance_copayment,
-        total_adjustments: totalAdjustments,
-        verified_amount: verifiedAmount,
-        finding_count: findings.length,
-        status: claim.status,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'claim_id' });
-
-    if (summaryError) throw summaryError;
-  },
-
-  /**
-   * Finalizes the claim verification and updates officer metrics
-   */
-  async submitClaimVerification(claimId: string, userId: string) {
-    // 1. Update claim status
-    const { error: claimError } = await supabase
-      .from('claims')
-      .update({ status: 'VERIFIED', updated_at: new Date().toISOString() })
-      .eq('id', claimId);
-
-    if (claimError) throw claimError;
-
-    // 2. Get summary for metrics
-    const { data: summary, error: summaryError } = await supabase
-      .from('claim_verification_summary')
-      .select('total_adjustments, finding_count')
-      .eq('claim_id', claimId)
-      .single();
-
-    if (summaryError) throw summaryError;
-
-    // 3. Update officer metrics
-    const { data: metrics, error: metricsError } = await supabase
-      .from('officer_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (metricsError && metricsError.code !== 'PGRST116') throw metricsError;
-
-    if (metrics) {
-      await supabase
-        .from('officer_metrics')
-        .update({
-          claims_reviewed: metrics.claims_reviewed + 1,
-          findings_created: metrics.findings_created + summary.finding_count,
-          adjustments_made: metrics.adjustments_made + summary.total_adjustments,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
-    } else {
-      await supabase
-        .from('officer_metrics')
-        .insert({
-          user_id: userId,
-          claims_reviewed: 1,
-          findings_created: summary.finding_count,
-          adjustments_made: summary.total_adjustments,
-        });
+    if (error) {
+      throw new Error(error.message);
     }
 
-    // 4. Update summary status too
-    await supabase
-      .from('claim_verification_summary')
-      .update({ status: 'VERIFIED' })
-      .eq('claim_id', claimId);
-  }
+    return (data ?? []).map(toVerificationSession).filter((session): session is VerificationSession => session !== null);
+  },
+
+  async getCaseClaims(caseId: string): Promise<Claim[]> {
+    const { data, error } = await supabase
+      .from('claims')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .returns<Claim[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ?? [];
+  },
+
+  async getCaseFindings(caseId: string): Promise<Finding[]> {
+    const { data, error } = await supabase
+      .from('findings')
+      .select('*')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .returns<Finding[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ?? [];
+  },
+
+  async getVerificationStats(caseId: string): Promise<VerificationStats> {
+    const [claims, findings] = await Promise.all([
+      this.getCaseClaims(caseId),
+      this.getCaseFindings(caseId),
+    ]);
+
+    return buildStats(caseId, claims, findings);
+  },
+
+  async getClaimVerificationDetail(caseId: string, claimId: string): Promise<ClaimVerificationDetail | null> {
+    const { data: claims, error: claimError } = await supabase
+      .from('claims')
+      .select('*')
+      .eq('case_id', caseId)
+      .eq('id', claimId)
+      .limit(1)
+      .returns<Claim[]>();
+
+    if (claimError) {
+      throw new Error(claimError.message);
+    }
+
+    const claim = claims?.[0];
+
+    if (!claim) {
+      return null;
+    }
+
+    const [findings, stats] = await Promise.all([
+      this.getClaimFindings(claimId),
+      this.getVerificationStats(caseId),
+    ]);
+
+    return { claim, findings, stats };
+  },
+
+  async getClaimFindings(claimId: string): Promise<Finding[]> {
+    const { data, error } = await supabase
+      .from('findings')
+      .select('*')
+      .eq('claim_id', claimId)
+      .order('created_at', { ascending: false })
+      .returns<Finding[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data ?? [];
+  },
+
+  async createFinding(input: FindingInput): Promise<Finding> {
+    const insert: FindingInsert = {
+      claim_id: input.claimId,
+      case_id: input.caseId,
+      category: input.category,
+      finding_type: input.findingType,
+      description: input.description,
+      adjustment_amount: input.adjustmentAmount,
+      severity: input.severity,
+      status: input.status,
+      created_by: input.createdBy,
+      metadata: input.metadata ?? null,
+    };
+
+    const { data, error } = await supabase
+      .from('findings')
+      .insert([insert])
+      .select('*')
+      .single()
+      .returns<Finding>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  async updateClaimStatus(claimId: string, status: Claim['status']): Promise<Claim> {
+    const update: ClaimUpdate = { status };
+
+    const { data, error } = await supabase
+      .from('claims')
+      .update(update)
+      .eq('id', claimId)
+      .select('*')
+      .single()
+      .returns<Claim>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return data;
+  },
+
+  async getOfficerPerformance(officerId: string): Promise<OfficerPerformance | null> {
+    const { data, error } = await supabase
+      .from('officer_metrics')
+      .select('*')
+      .eq('officer_id', officerId)
+      .order('metric_date', { ascending: false })
+      .limit(1)
+      .returns<OfficerMetricsRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const metrics = data?.[0];
+
+    return metrics ? { ...metrics, officerName: null } : null;
+  },
 };

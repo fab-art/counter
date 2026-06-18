@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "tsx scripts/with-root-env.ts next dev",
+    "prebuild": "tsx scripts/verify-supabase.ts",
+    "build": "tsx scripts/with-root-env.ts next build",
+    "start": "tsx scripts/with-root-env.ts next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -23,14 +25,14 @@
     "@radix-ui/react-switch": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.2",
-    "@supabase/supabase-js": "^2.47.10",
+    "@supabase/supabase-js": "^2.108.2",
     "@tanstack/react-table": "^8.20.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.38.2",
     "lucide-react": "^0.468.0",
-    "next": "15.1.0",
+    "next": "^15.2.0-canary.0",
     "next-themes": "^0.4.4",
     "postgres": "^3.4.5",
     "react": "19.0.0",
@@ -63,6 +65,7 @@
     "postcss": "^8.4.49",
     "prettier": "^3.4.2",
     "tailwindcss": "^4.0.0-beta.8",
+    "tsx": "^4.22.4",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },

@@ -13,6 +13,9 @@ vi.mock('@/lib/supabase', () => ({
       eq: vi.fn().mockReturnThis(),
       update: vi.fn().mockReturnThis(),
       upsert: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      returns: vi.fn().mockReturnThis(),
     })),
   },
 }));
@@ -27,42 +30,50 @@ describe('verificationService', () => {
   });
 
   it('should have the expected methods', () => {
-    expect(verificationService.addFinding).toBeDefined();
-    expect(verificationService.removeFinding).toBeDefined();
-    expect(verificationService.refreshClaimSummary).toBeDefined();
-    expect(verificationService.submitClaimVerification).toBeDefined();
+    expect(verificationService.getVerificationQueue).toBeDefined();
+    expect(verificationService.getCaseClaims).toBeDefined();
+    expect(verificationService.getCaseFindings).toBeDefined();
+    expect(verificationService.getVerificationStats).toBeDefined();
+    expect(verificationService.getClaimVerificationDetail).toBeDefined();
+    expect(verificationService.getClaimFindings).toBeDefined();
+    expect(verificationService.createFinding).toBeDefined();
+    expect(verificationService.updateClaimStatus).toBeDefined();
+    expect(verificationService.getOfficerPerformance).toBeDefined();
   });
 
   // Since we are mostly mocking Supabase and the logic depends on its response,
   // we focus on verifying that the service methods call Supabase correctly.
 
-  it('calls supabase.from("findings").insert when addFinding is called', async () => {
+  it('calls supabase.from("findings").insert when createFinding is called', async () => {
     const fromSpy = vi.spyOn(supabase, 'from');
 
-    // Mock refreshClaimSummary to avoid further calls
-    vi.spyOn(verificationService, 'refreshClaimSummary').mockResolvedValue(undefined);
-
-    const finding = {
-      category: 'PHARMACOLOGY' as const,
+    const input = {
+      claimId: 'claim-1',
+      caseId: 'case-1',
+      category: 'PHARMACOLOGY',
       findingType: 'Overprescribing',
+      description: 'Test finding',
       adjustmentAmount: 5000,
+      severity: 'MEDIUM',
+      status: 'OPEN',
+      createdBy: 'user-1',
     };
 
     try {
-      await verificationService.addFinding('case-1', 'claim-1', finding, 'user-1');
-    } catch (e) {
+      await verificationService.createFinding(input);
+    } catch {
       // Ignore errors due to mock returning undefined instead of expected data structure
     }
 
     expect(fromSpy).toHaveBeenCalledWith('findings');
   });
 
-  it('calls supabase.from("claims").update when submitClaimVerification is called', async () => {
+  it('calls supabase.from("claims").update when updateClaimStatus is called', async () => {
     const fromSpy = vi.spyOn(supabase, 'from');
 
     try {
-      await verificationService.submitClaimVerification('claim-1', 'user-1');
-    } catch (e) {
+      await verificationService.updateClaimStatus('claim-1', 'VERIFIED');
+    } catch {
       // Ignore errors
     }
 

@@ -36,7 +36,7 @@ export function ForgotPasswordForm() {
       } else {
         toast.error(error || 'Failed to send reset link');
       }
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
     } finally {
       setIsLoading(false);

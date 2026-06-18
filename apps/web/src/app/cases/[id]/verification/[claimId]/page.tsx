@@ -1,53 +1,3 @@
-'use client';
-
-import { useState, use, useEffect } from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  ArrowLeft,
-  Plus,
-  Trash2,
-  AlertCircle,
-  FileText,
-  Calculator,
-  User,
-  Calendar,
-  Loader2
-} from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { verificationService, Finding } from '@/services/verification';
@@ -110,11 +60,13 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
         setClaim(claimData);
       }
 
-      // Fetch findings
-      const { data: findingsData, error: findingsError } = await supabase
-        .from('findings')
-        .select('*')
-        .eq('claim_id', claimId);
+export default async function ClaimVerificationPage({
+  params,
+}: {
+  params: Promise<{ id: string; claimId: string }>;
+}) {
+  const { id: caseId, claimId } = await params;
+  const detail = await verificationService.getClaimVerificationDetail(caseId, claimId);
 
       if (!findingsError && findingsData) {
         setFindings(findingsData.map((f: any) => ({
@@ -203,28 +155,11 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href={`/cases/${caseId}/verification`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Review Claim: {claim?.claimNumber || claim?.claim_number}</h1>
-            <p className="text-slate-500">Case ID: {caseId} • Patient: {claim?.patientName || claim?.patient_name}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-           <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100">
-             Flag Claim
-           </Button>
-           <Button className="bg-green-600 hover:bg-green-700" onClick={handleSubmitVerification} disabled={submitting}>
-             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-             Submit Verification
-           </Button>
-        </div>
+    <main className="space-y-6 p-8">
+      <div className="space-y-2">
+        <Link className="text-sm text-blue-600" href={`/cases/${caseId}/verification`}>Back to verification queue</Link>
+        <h1 className="text-3xl font-bold tracking-tight">Claim {claim.claim_number}</h1>
+        <p className="text-slate-500">Patient: {claim.patient_name}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -10,7 +10,6 @@ import {
 import {
   FileText,
   CheckCircle2,
-  Clock,
   AlertCircle,
   TrendingUp,
   Activity
@@ -23,8 +22,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -63,25 +60,6 @@ const stats = [
     color: 'text-red-600',
     bg: 'bg-red-100'
   },
-];
-
-const barData = [
-  { name: 'Mon', completed: 4, pending: 2 },
-  { name: 'Tue', completed: 7, pending: 5 },
-  { name: 'Wed', completed: 5, pending: 8 },
-  { name: 'Thu', completed: 10, pending: 4 },
-  { name: 'Fri', completed: 12, pending: 3 },
-  { name: 'Sat', completed: 2, pending: 1 },
-  { name: 'Sun', completed: 1, pending: 1 },
-];
-
-const lineData = [
-  { name: 'Jan', value: 400 },
-  { name: 'Feb', value: 300 },
-  { name: 'Mar', value: 600 },
-  { name: 'Apr', value: 800 },
-  { name: 'May', value: 500 },
-  { name: 'Jun', value: 900 },
 ];
 
 const categoryData = [

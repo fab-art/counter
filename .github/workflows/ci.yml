@@ -16,14 +16,18 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '24'
         cache: 'npm'
+        cache-dependency-path: apps/web/package-lock.json
 
     - name: Install dependencies
       run: npm install --prefix apps/web
 
     - name: Lint
       run: npm run lint --prefix apps/web
+
+    - name: Type check
+      run: npm run type-check --prefix apps/web
 
     - name: Run Vitest
       run: npm run test --prefix apps/web
