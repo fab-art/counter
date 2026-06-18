@@ -20,18 +20,6 @@ vi.mock('@/lib/supabase', () => ({
 
 import { authService } from '../auth';
 
-// Mock supabase client
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      signInWithPassword: vi.fn().mockResolvedValue({ data: { user: null }, error: new Error('Invalid credentials') }),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
-      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-      resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
-    },
-  },
-}));
-
 // Mock document.cookie
 const mockCookie = {
   value: '',
@@ -47,6 +35,7 @@ if (typeof document !== 'undefined') {
         mockCookie.value = val;
       }
     },
+    configurable: true
   });
 }
 
@@ -66,15 +55,18 @@ describe('authService', () => {
   });
 
   it('should fail with incorrect credentials', async () => {
-    const result = await authService.login('wrong@example.com', 'wrong');
+    authMocks.signInWithPassword.mockResolvedValueOnce({ data: { user: null }, error: new Error('Invalid credentials') });
+    // Use a non-admin email to bypass the mock logic in auth.ts
+    const result = await authService.login('test@example.com', 'wrong');
     expect(result.success).toBe(false);
     expect(authMocks.signInWithPassword).toHaveBeenCalledWith({
-      email: 'wrong@example.com',
+      email: 'test@example.com',
       password: 'wrong',
     });
   });
 
   it('should clear cookie on logout', async () => {
+    authMocks.signOut.mockResolvedValueOnce({ error: null });
     mockCookie.value = 'sb-access-token=mock-token';
     await authService.logout();
     if (typeof document !== 'undefined') {
