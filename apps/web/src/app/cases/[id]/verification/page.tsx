@@ -19,10 +19,18 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Search,
   Filter,
   Loader2,
-  ArrowLeft
+  ArrowLeft,
+  X
 } from 'lucide-react';
 import Link from 'next/link';
 import { verificationService } from '@/services/verification';
@@ -32,6 +40,7 @@ interface Claim {
   id: string;
   claimNumber: string;
   patientName: string;
+  patientId: string;
   practitionerName: string;
   insuranceAmount: number;
   status: string;
@@ -40,7 +49,9 @@ interface Claim {
 export default function VerificationQueuePage({ params }: { params: { id: string } }) {
   const caseId = params.id;
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter] = useState('ALL');
+  const [patientIdSearch, setPatientIdSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<VerificationStats | null>(null);
@@ -50,65 +61,24 @@ export default function VerificationQueuePage({ params }: { params: { id: string
     try {
       const [fetchedStats, fetchedQueue] = await Promise.all([
         verificationService.getVerificationStats(caseId),
-        verificationService.getVerificationQueue(caseId)
+        verificationService.getVerificationQueue(caseId, {
+          claimNumber: searchTerm,
+          patientId: patientIdSearch,
+          status: statusFilter
+        })
       ]);
 
       setStats(fetchedStats);
 
-      if (fetchedQueue.length === 0) {
-        // Fallback to mock for demo
-        setClaims([
-          {
-            id: '1',
-            claimNumber: 'CLM-001',
-            patientName: 'Jean Paul',
-            practitionerName: 'Dr. Karekezi',
-            insuranceAmount: 25000,
-            status: 'UNREVIEWED'
-          },
-          {
-            id: '2',
-            claimNumber: 'CLM-002',
-            patientName: 'Marie Claire',
-            practitionerName: 'Dr. Uwimana',
-            insuranceAmount: 15500,
-            status: 'IN_PROGRESS'
-          },
-          {
-            id: '3',
-            claimNumber: 'CLM-003',
-            patientName: 'Emmanuel N.',
-            practitionerName: 'Dr. Gakwaya',
-            insuranceAmount: 42000,
-            status: 'VERIFIED'
-          },
-          {
-            id: '4',
-            claimNumber: 'CLM-004',
-            patientName: 'Alice M.',
-            practitionerName: 'Dr. Karekezi',
-            insuranceAmount: 12000,
-            status: 'FLAGGED'
-          },
-          {
-            id: '5',
-            claimNumber: 'CLM-005',
-            patientName: 'Eric S.',
-            practitionerName: 'Dr. Habimana',
-            insuranceAmount: 33000,
-            status: 'UNREVIEWED'
-          }
-        ]);
-      } else {
-        setClaims(fetchedQueue.map((session: VerificationSession) => ({
-          id: session.claim.id,
-          claimNumber: session.claim.claim_number,
-          patientName: session.claim.patient_name,
-          practitionerName: session.claim.practitioner_name || 'N/A',
-          insuranceAmount: session.claim.insurance_copayment || 0,
-          status: session.claim.status
-        })));
-      }
+      setClaims(fetchedQueue.map((session: VerificationSession) => ({
+        id: session.claim.id,
+        claimNumber: session.claim.claim_number,
+        patientName: session.claim.patient_name,
+        patientId: session.claim.patient_id,
+        practitionerName: session.claim.practitioner_name || 'N/A',
+        insuranceAmount: session.claim.insurance_copayment || 0,
+        status: session.claim.status
+      })));
     } catch (error) {
       console.error('Error fetching verification queue:', error);
     } finally {
@@ -117,24 +87,23 @@ export default function VerificationQueuePage({ params }: { params: { id: string
   };
 
   useEffect(() => {
-    fetchData();
-  }, [caseId]);
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [caseId, searchTerm, patientIdSearch, statusFilter]);
 
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'RWF' }).format(value);
   };
 
-  const filteredClaims = claims.filter(claim => {
-    const matchesSearch =
-      claim.claimNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      claim.patientName.toLowerCase().includes(searchTerm.toLowerCase());
+  const clearFilters = () => {
+    setSearchTerm('');
+    setPatientIdSearch('');
+    setStatusFilter('ALL');
+  };
 
-    const matchesStatus = statusFilter === 'ALL' || claim.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  if (loading) {
+  if (loading && claims.length === 0) {
     return (
       <div className="h-full flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
@@ -160,7 +129,7 @@ export default function VerificationQueuePage({ params }: { params: { id: string
             <CardTitle className="text-sm font-medium text-slate-500">Total Claims</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalClaims || claims.length}</div>
+            <div className="text-2xl font-bold">{stats?.totalClaims || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -168,7 +137,7 @@ export default function VerificationQueuePage({ params }: { params: { id: string
             <CardTitle className="text-sm font-medium text-slate-500">Verified</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats?.verifiedClaims || claims.filter(c => c.status === 'VERIFIED').length}</div>
+            <div className="text-2xl font-bold text-green-600">{stats?.verifiedClaims || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -176,7 +145,7 @@ export default function VerificationQueuePage({ params }: { params: { id: string
             <CardTitle className="text-sm font-medium text-slate-500">Flagged</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats?.flaggedClaims || claims.filter(c => c.status === 'FLAGGED').length}</div>
+            <div className="text-2xl font-bold text-red-600">{stats?.flaggedClaims || 0}</div>
           </CardContent>
         </Card>
         <Card>
@@ -197,17 +166,57 @@ export default function VerificationQueuePage({ params }: { params: { id: string
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Search claims..."
+                  placeholder="Search claim number..."
                   className="pl-8 w-[250px]"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="icon">
+              <Button
+                variant={showAdvancedFilters ? "secondary" : "outline"}
+                size="icon"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              >
                 <Filter className="h-4 w-4" />
               </Button>
+              {(searchTerm || patientIdSearch || statusFilter !== 'ALL') && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-slate-500">
+                  <X className="h-4 w-4 mr-1" /> Clear
+                </Button>
+              )}
             </div>
           </div>
+
+          {showAdvancedFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 p-4 bg-slate-50 rounded-lg border">
+               <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Patient ID</label>
+                <Input
+                  placeholder="Enter Patient ID"
+                  value={patientIdSearch}
+                  onChange={(e) => setPatientIdSearch(e.target.value)}
+                />
+               </div>
+               <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Statuses</SelectItem>
+                    <SelectItem value="UNREVIEWED">Unreviewed</SelectItem>
+                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                    <SelectItem value="VERIFIED">Verified</SelectItem>
+                    <SelectItem value="FLAGGED">Flagged</SelectItem>
+                  </SelectContent>
+                </Select>
+               </div>
+               <div className="flex items-end">
+                  <p className="text-xs text-slate-500 italic">Filters apply automatically as you type.</p>
+               </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
@@ -223,10 +232,15 @@ export default function VerificationQueuePage({ params }: { params: { id: string
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClaims.map((claim) => (
+                {claims.map((claim) => (
                   <TableRow key={claim.id}>
                     <TableCell className="font-medium">{claim.claimNumber}</TableCell>
-                    <TableCell>{claim.patientName}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm">{claim.patientName}</p>
+                        <p className="text-xs text-slate-500">ID: {claim.patientId}</p>
+                      </div>
+                    </TableCell>
                     <TableCell>{claim.practitionerName}</TableCell>
                     <TableCell>
                       <Badge
@@ -254,9 +268,14 @@ export default function VerificationQueuePage({ params }: { params: { id: string
               </TableBody>
             </Table>
           </div>
-          {filteredClaims.length === 0 && (
+          {claims.length === 0 && !loading && (
             <div className="text-center py-10 text-slate-500">
               No claims found matching your criteria.
+            </div>
+          )}
+          {loading && claims.length > 0 && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
             </div>
           )}
         </CardContent>

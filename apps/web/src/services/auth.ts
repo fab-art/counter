@@ -40,6 +40,26 @@ export const authService = {
     return user;
   },
 
+  async getUserRole(userId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select(`
+          roles (
+            name
+          )
+        `)
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+      return (data as any)?.roles?.name || 'TECHNICAL_OFFICER';
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      return 'TECHNICAL_OFFICER'; // Default role
+    }
+  },
+
   async resetPassword(email: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     return { success: !error, error: error?.message };

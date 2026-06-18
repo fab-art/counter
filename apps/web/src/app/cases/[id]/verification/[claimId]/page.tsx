@@ -52,6 +52,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 
 interface UI_Finding {
   id: string | number;
@@ -69,6 +70,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   const [loading, setLoading] = useState(true);
   const [isAddFindingOpen, setIsAddFindingOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [verificationComment, setVerificationComment] = useState('');
   const [newFinding, setNewFinding] = useState({
     category: '' as Finding['category'],
     type: '',
@@ -79,7 +81,6 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   const fetchClaimData = async () => {
     setLoading(true);
     try {
-      // Fetch claim
       const { data: claimData, error: claimError } = await supabase
         .from('claims')
         .select('*')
@@ -87,7 +88,6 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
         .single();
 
       if (claimError) {
-        // Fallback to mock for demo if not in DB yet
         setClaim({
           id: claimId,
           claim_number: 'CLM-001',
@@ -133,7 +133,6 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
 
     let syncPerformed = false;
 
-    // Sync findings
     const offlineFindings = JSON.parse(localStorage.getItem('offline_findings_queue') || '[]');
     if (offlineFindings.length > 0) {
       toast.info('Back online. Synchronizing data...');
@@ -154,7 +153,6 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
       }
     }
 
-    // Sync status updates
     const offlineUpdates = JSON.parse(localStorage.getItem('offline_status_updates') || '{}');
     const remainingUpdates: Record<string, string> = {};
     const updateEntries = Object.entries(offlineUpdates);
@@ -192,8 +190,8 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   const verifiedAmount = (claim?.insurance_copayment || 0) - totalAdjustments;
 
   const handleAddFinding = async () => {
-    if (!newFinding.category || !newFinding.type) {
-      toast.error('Please fill in all required fields');
+    if (!newFinding.category || !newFinding.type || !newFinding.description) {
+      toast.error('Category, type, and description are required');
       return;
     }
 
@@ -226,19 +224,14 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
       await fetchClaimData();
       setIsAddFindingOpen(false);
       setNewFinding({ category: '' as any, type: '', description: '', adjustment: 0 });
-    } catch (error) {
-      // Fallback for UI demo
-      setFindings([...findings, { ...newFinding, id: Date.now() }]);
-      setIsAddFindingOpen(false);
-      setNewFinding({ category: '' as any, type: '', description: '', adjustment: 0 });
-      toast.info('Finding added locally (offline mode)');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add finding');
     }
   };
 
   const removeFinding = async (id: string | number) => {
     try {
       if (typeof id === 'string') {
-        // Implementation for removing finding if needed
         await supabase.from('findings').delete().eq('id', id);
         await fetchClaimData();
       } else {
@@ -251,19 +244,35 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   };
 
   const handleSubmitVerification = async () => {
+    // Data quality check: If there are findings, a comment is mandatory
+    if (findings.length > 0 && verificationComment.length < 10) {
+      toast.error('A detailed comment (min 10 chars) is mandatory when findings are present.');
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      const status = findings.length > 0 ? 'FLAGGED' : 'VERIFIED';
+
       if (navigator.onLine) {
-        await verificationService.updateClaimStatus(claimId, 'VERIFIED');
-        toast.success('Claim verification submitted successfully');
+        await verificationService.updateClaimStatus(claimId, status, userId);
+        toast.success(`Claim ${status.toLowerCase()} successfully`);
       } else {
         const offlineUpdates = JSON.parse(localStorage.getItem('offline_status_updates') || '{}');
-        offlineUpdates[claimId] = 'VERIFIED';
+        offlineUpdates[claimId] = status;
         localStorage.setItem('offline_status_updates', JSON.stringify(offlineUpdates));
         toast.info('Verification queued for sync (offline mode)');
       }
-    } catch (error) {
-      toast.success('Claim verification submitted (demo)');
+
+      // Redirect back after short delay
+      setTimeout(() => {
+        window.location.href = `/cases/${caseId}/verification`;
+      }, 2000);
+
+    } catch (error: any) {
+      toast.error('Failed to submit verification: ' + error.message);
     } finally {
       setSubmitting(false);
     }
@@ -283,8 +292,15 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
         <Link className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1" href={`/cases/${caseId}/verification`}>
           <ArrowLeft className="h-4 w-4" /> Back to verification queue
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Claim {claim?.claim_number}</h1>
-        <p className="text-slate-500">Patient: {claim?.patient_name}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Claim {claim?.claim_number}</h1>
+            <p className="text-slate-500">Patient: {claim?.patient_name}</p>
+          </div>
+          <Badge variant={claim?.status === 'VERIFIED' ? 'default' : claim?.status === 'FLAGGED' ? 'destructive' : 'outline'}>
+            {claim?.status}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -304,7 +320,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
                 <div>
                   <p className="text-xs sm:text-sm text-slate-500">Service Date</p>
                   <p className="font-medium text-slate-900 flex items-center gap-1">
-                    <Calendar className="h-3 w-3" /> {claim?.service_date}
+                    <Calendar className="h-3 w-3" /> {claim?.service_date || claim?.dispensing_date}
                   </p>
                 </div>
                 <div>
@@ -319,7 +335,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
                 </div>
                 <div>
                   <p className="text-xs sm:text-sm text-slate-500">Practitioner</p>
-                  <p className="font-medium text-slate-900">Dr. {claim?.practitioner_name}</p>
+                  <p className="font-medium text-slate-900">{claim?.practitioner_name}</p>
                 </div>
               </div>
             </CardContent>
@@ -379,17 +395,16 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
                         id="adjustment"
                         type="number"
                         value={newFinding.adjustment}
-                        onChange={(e) => setNewFinding({...newFinding, adjustment: parseInt(e.target.value) || 0})}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewFinding({...newFinding, adjustment: parseInt(e.target.value) || 0})}
                       />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="description">Description</Label>
-                      <textarea
+                      <Textarea
                         id="description"
-                        className="flex h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         placeholder="Detailed explanation..."
                         value={newFinding.description}
-                        onChange={(e) => setNewFinding({...newFinding, description: e.target.value})}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewFinding({...newFinding, description: e.target.value})}
                       />
                     </div>
                   </div>
@@ -439,6 +454,28 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Verification Comments</CardTitle>
+              <CardDescription>
+                Provide context for your verification decision. Mandatory if findings are identified.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+               <Textarea
+                placeholder="Enter verification notes..."
+                className="min-h-[100px]"
+                value={verificationComment}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setVerificationComment(e.target.value)}
+               />
+               {findings.length > 0 && verificationComment.length < 10 && (
+                 <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                   <AlertCircle className="h-3 w-3" /> Comment must be at least 10 characters long.
+                 </p>
+               )}
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-6">
@@ -451,7 +488,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center text-sm">
                  <span className="text-slate-500">Total Claim Cost</span>
-                 <span className="font-medium">{(claim?.total_cost || 0).toLocaleString()} RWF</span>
+                 <span className="font-medium">{(claim?.total_amount || 0).toLocaleString()} RWF</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                  <span className="text-slate-500">Patient Copayment (15%)</span>
@@ -485,7 +522,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
                  disabled={submitting}
                >
                  {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                 Submit Verification
+                 {findings.length > 0 ? 'Submit with Findings' : 'Verify Claim'}
                </Button>
             </CardFooter>
           </Card>
@@ -498,22 +535,24 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
                <div className="space-y-4">
                   <div className="flex gap-3">
                     <div className="h-6 w-6 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <Plus className="h-3 w-3 text-blue-600" />
+                      <FileText className="h-3 w-3 text-blue-600" />
                     </div>
                     <div>
                       <p className="text-xs font-medium">Claim imported</p>
-                      <p className="text-[10px] text-slate-400">Today, 09:00 AM</p>
+                      <p className="text-[10px] text-slate-400">May 15, 2024</p>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <div className="h-6 w-6 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                      <FileText className="h-3 w-3 text-amber-600" />
+                  {findings.length > 0 && (
+                    <div className="flex gap-3">
+                      <div className="h-6 w-6 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                        <AlertCircle className="h-3 w-3 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium">{findings.length} Finding(s) added</p>
+                        <p className="text-[10px] text-slate-400">Just now</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-medium">Review started</p>
-                      <p className="text-[10px] text-slate-400">Today, 10:15 AM</p>
-                    </div>
-                  </div>
+                  )}
                </div>
             </CardContent>
           </Card>

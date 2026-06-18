@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
+import { auditService } from './audit';
+import { findingSchema } from '@/lib/validations';
 import type {
   Claim,
   ClaimVerificationDetail,
@@ -66,11 +68,30 @@ function buildStats(caseId: string, claims: Claim[], findings: Finding[]): Verif
 }
 
 export const verificationService = {
-  async getVerificationQueue(caseId: string): Promise<VerificationSession[]> {
-    const { data, error } = await supabase
+  async getVerificationQueue(
+    caseId: string,
+    filters: {
+      claimNumber?: string;
+      patientId?: string;
+      status?: string;
+    } = {}
+  ): Promise<VerificationSession[]> {
+    let query = supabase
       .from('verification_queue')
-      .select('id, claim_id, batch_id, priority, status, assigned_to, created_at, claims(*)')
-      .eq('claims.case_id', caseId)
+      .select('id, claim_id, batch_id, priority, status, assigned_to, created_at, claims!inner(*)')
+      .eq('claims.case_id', caseId);
+
+    if (filters.claimNumber) {
+      query = query.ilike('claims.claim_number', `%${filters.claimNumber}%`);
+    }
+    if (filters.patientId) {
+      query = query.eq('claims.patient_id', filters.patientId);
+    }
+    if (filters.status && filters.status !== 'ALL') {
+      query = query.eq('claims.status', filters.status);
+    }
+
+    const { data, error } = await query
       .order('priority', { ascending: false })
       .returns<VerificationQueueRecord[]>();
 
@@ -163,6 +184,9 @@ export const verificationService = {
   },
 
   async createFinding(input: FindingInput): Promise<Finding> {
+    // Validate input
+    findingSchema.parse(input);
+
     const insert: FindingInsert = {
       claim_id: input.claimId,
       case_id: input.caseId,
@@ -187,10 +211,26 @@ export const verificationService = {
       throw new Error(error.message);
     }
 
+    // Log finding creation
+    await auditService.log({
+      userId: input.createdBy,
+      action: 'CREATE_FINDING',
+      entityType: 'findings',
+      entityId: data.id,
+      newValue: data,
+    });
+
     return data;
   },
 
-  async updateClaimStatus(claimId: string, status: Claim['status']): Promise<Claim> {
+  async updateClaimStatus(claimId: string, status: Claim['status'], userId?: string): Promise<Claim> {
+    // Get old value for audit
+    const { data: oldData } = await supabase
+      .from('claims')
+      .select('status')
+      .eq('id', claimId)
+      .single();
+
     const update: ClaimUpdate = { status };
 
     const { data, error } = await supabase
@@ -203,6 +243,18 @@ export const verificationService = {
 
     if (error) {
       throw new Error(error.message);
+    }
+
+    // Log status change
+    if (userId) {
+      await auditService.log({
+        userId,
+        action: 'UPDATE_CLAIM_STATUS',
+        entityType: 'claims',
+        entityId: claimId,
+        oldValue: oldData,
+        newValue: { status },
+      });
     }
 
     return data;
