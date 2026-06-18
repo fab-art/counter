@@ -6,6 +6,8 @@ import {
   varchar,
   boolean,
   integer,
+  numeric,
+  date,
   jsonb,
   primaryKey,
   pgEnum,
@@ -79,6 +81,105 @@ export const cases = pgTable('cases', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
+});
+
+export const facilities = pgTable('facilities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  type: varchar('type', { length: 100 }).notNull(),
+  address: text('address'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const uploads = pgTable('uploads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  filePath: text('file_path').notNull(),
+  fileSize: integer('file_size').notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  uploadedBy: uuid('uploaded_by').references(() => users.id).notNull(),
+  facilityId: uuid('facility_id').references(() => facilities.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const claims = pgTable('claims', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  uploadId: uuid('upload_id').references(() => uploads.id),
+  caseId: uuid('case_id').references(() => cases.id),
+  claimNumber: varchar('claim_number', { length: 100 }).notNull().unique(),
+  paperCode: varchar('paper_code', { length: 100 }),
+  dispensingDate: date('dispensing_date'),
+  patientName: varchar('patient_name', { length: 255 }).notNull(),
+  patientId: varchar('patient_id', { length: 100 }).notNull(),
+  patientType: varchar('patient_type', { length: 100 }),
+  gender: varchar('gender', { length: 50 }),
+  isNewborn: boolean('is_newborn'),
+  ramaNumber: varchar('rama_number', { length: 100 }),
+  practitionerName: varchar('practitioner_name', { length: 255 }),
+  practitionerType: varchar('practitioner_type', { length: 100 }),
+  facilityId: uuid('facility_id').references(() => facilities.id).notNull(),
+  status: varchar('status', { length: 50 }).default('UNREVIEWED').notNull(),
+  totalAmount: numeric('total_amount').$type<number>().notNull(),
+  patientCopayment: numeric('patient_copayment').$type<number>(),
+  insuranceCopayment: numeric('insurance_copayment').$type<number>(),
+  duplicateFlag: boolean('duplicate_flag').default(false).notNull(),
+  duplicateScore: integer('duplicate_score'),
+  crossFacilityFlag: boolean('cross_facility_flag').default(false).notNull(),
+  crossFacilityScore: integer('cross_facility_score'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const verificationQueue = pgTable('verification_queue', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id).notNull(),
+  batchId: uuid('batch_id'),
+  priority: integer('priority').default(0).notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  assignedTo: uuid('assigned_to').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const verificationResults = pgTable('verification_results', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id).notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  score: integer('score').default(0).notNull(),
+  findings: jsonb('findings'),
+  verifiedBy: uuid('verified_by').references(() => users.id),
+  verifiedAt: timestamp('verified_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const findings = pgTable('findings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id).notNull(),
+  caseId: uuid('case_id').references(() => cases.id).notNull(),
+  category: varchar('category', { length: 100 }).notNull(),
+  findingType: varchar('finding_type', { length: 100 }).notNull(),
+  description: text('description').notNull(),
+  adjustmentAmount: numeric('adjustment_amount').$type<number>().default(0).notNull(),
+  severity: varchar('severity', { length: 50 }).notNull(),
+  status: varchar('status', { length: 50 }).default('OPEN').notNull(),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const officerMetrics = pgTable('officer_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  officerId: uuid('officer_id').references(() => users.id).notNull(),
+  claimsReviewed: integer('claims_reviewed').default(0).notNull(),
+  findingsCreated: integer('findings_created').default(0).notNull(),
+  adjustmentsGenerated: numeric('adjustments_generated').$type<number>().default(0).notNull(),
+  casesCompleted: integer('cases_completed').default(0).notNull(),
+  reviewTimeMinutes: integer('review_time_minutes').default(0).notNull(),
+  metricDate: date('metric_date').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const auditLogs = pgTable('audit_logs', {
