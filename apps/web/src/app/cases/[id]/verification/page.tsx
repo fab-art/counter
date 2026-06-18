@@ -6,7 +6,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription
+  CardDescription,
+  CardFooter
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,12 +34,21 @@ import {
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 
+interface Claim {
+  id: string;
+  claimNumber: string;
+  patientName: string;
+  practitionerName: string;
+  insuranceAmount: number;
+  status: string;
+}
+
 export default function VerificationQueuePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const caseId = resolvedParams.id;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [claims, setClaims] = useState<any[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -98,7 +108,7 @@ export default function VerificationQueuePage({ params }: { params: Promise<{ id
           }
         ]);
       } else {
-        setClaims(data.map(c => ({
+        setClaims(data.map((c: any) => ({
           id: c.id,
           claimNumber: c.claim_number,
           patientName: c.patient_name,

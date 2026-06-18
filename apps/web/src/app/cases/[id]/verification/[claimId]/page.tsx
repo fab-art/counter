@@ -53,17 +53,25 @@ import { toast } from 'sonner';
 import { verificationService, Finding } from '@/services/verification';
 import { supabase } from '@/lib/supabase';
 
+interface UI_Finding {
+  id: string | number;
+  category: Finding['category'];
+  type: string;
+  description: string;
+  adjustment: number;
+}
+
 export default function ClaimReviewPage({ params }: { params: Promise<{ id: string, claimId: string }> }) {
   const resolvedParams = use(params);
   const { id: caseId, claimId } = resolvedParams;
 
   const [claim, setClaim] = useState<any>(null);
-  const [findings, setFindings] = useState<any[]>([]);
+  const [findings, setFindings] = useState<UI_Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddFindingOpen, setIsAddFindingOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [newFinding, setNewFinding] = useState({
-    category: '' as any,
+    category: '' as Finding['category'],
     type: '',
     description: '',
     adjustment: 0
@@ -85,7 +93,6 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
 
       if (claimError) {
         // Fallback to mock for demo if not in DB yet
-        console.error('Error fetching claim:', claimError);
         setClaim({
           id: claimId,
           claimNumber: 'CLM-001',
@@ -109,8 +116,8 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
         .select('*')
         .eq('claim_id', claimId);
 
-      if (!findingsError) {
-        setFindings(findingsData.map(f => ({
+      if (!findingsError && findingsData) {
+        setFindings(findingsData.map((f: any) => ({
            id: f.id,
            category: f.category,
            type: f.finding_type,
@@ -150,7 +157,6 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
       setIsAddFindingOpen(false);
       setNewFinding({ category: '' as any, type: '', description: '', adjustment: 0 });
     } catch (error) {
-      console.error('Error adding finding:', error);
       // Fallback for UI demo
       setFindings([...findings, { ...newFinding, id: Date.now() }]);
       setIsAddFindingOpen(false);
@@ -169,7 +175,6 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
       }
       toast.success('Finding removed');
     } catch (error) {
-      console.error('Error removing finding:', error);
       toast.error('Failed to remove finding');
     }
   };
@@ -183,7 +188,6 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
       await verificationService.submitClaimVerification(claimId, userId);
       toast.success('Claim verification submitted successfully');
     } catch (error) {
-      console.error('Error submitting verification:', error);
       toast.success('Claim verification submitted (demo)');
     } finally {
       setSubmitting(false);
@@ -286,7 +290,7 @@ export default function ClaimReviewPage({ params }: { params: Promise<{ id: stri
                     <div className="grid gap-2">
                       <Label htmlFor="category">Category</Label>
                       <Select
-                        onValueChange={(v) => setNewFinding({...newFinding, category: v})}
+                        onValueChange={(v) => setNewFinding({...newFinding, category: v as Finding['category']})}
                         value={newFinding.category}
                       >
                         <SelectTrigger className="w-full">
