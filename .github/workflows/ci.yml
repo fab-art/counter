@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, sprint-1-foundation* ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, sprint-1-foundation* ]
 
 jobs:
   build:
@@ -16,8 +16,9 @@ jobs:
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
+        cache-dependency-path: apps/web/package-lock.json
 
     - name: Install dependencies
       run: npm install --prefix apps/web
@@ -31,5 +32,5 @@ jobs:
     - name: Build
       run: npm run build --prefix apps/web
       env:
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321' }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy' }}
