@@ -14,8 +14,7 @@ import {
   ChevronRight,
   LogOut,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 import { authService } from '@/services/auth';
 import { useRouter } from 'next/navigation';
 
@@ -31,7 +30,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>('ADMIN'); // Defaulting to ADMIN for Sprint 1 demo
+  const [userRole] = useState<string | null>('ADMIN'); // Defaulting to ADMIN for Sprint 1 demo
 
   const handleLogout = async () => {
     await authService.logout();

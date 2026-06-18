@@ -23,8 +23,9 @@ async function verifySupabaseConnection() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Error: Missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)');
-    process.exit(1);
+    console.warn('⚠️ Warning: Missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)');
+    console.warn('⚠️ Supabase connection check will be skipped.');
+    return;
   }
 
   console.log(`Checking connection to: ${supabaseUrl}`);

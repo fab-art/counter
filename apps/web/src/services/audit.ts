@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase';
-
 export type AuditAction =
   | 'LOGIN'
   | 'LOGOUT'
