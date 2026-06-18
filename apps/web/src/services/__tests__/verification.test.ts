@@ -61,7 +61,7 @@ describe('verificationService', () => {
 
     try {
       await verificationService.createFinding(input);
-    } catch (e) {
+    } catch {
       // Ignore errors due to mock returning undefined instead of expected data structure
     }
 
@@ -73,7 +73,7 @@ describe('verificationService', () => {
 
     try {
       await verificationService.updateClaimStatus('claim-1', 'VERIFIED');
-    } catch (e) {
+    } catch {
       // Ignore errors
     }
 

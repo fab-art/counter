@@ -41,7 +41,7 @@ export function LoginForm() {
         toast.error(error || 'Failed to login');
         setIsLoading(false); // FIXED: only stop loading if it failed
       }
-    } catch (error) {
+    } catch {
       toast.error('An unexpected error occurred');
       setIsLoading(false); // FIXED
     }
