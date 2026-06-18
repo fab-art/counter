@@ -23,13 +23,63 @@ import {
   Building2,
   Users,
   Calendar,
-  Loader2
+  Loader2,
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 import { dataService } from '@/services/data';
-import { convertToCSV, downloadCSV } from '@/lib/export-utils';
+import { downloadCSV, downloadExcel, downloadPDF } from '@/lib/export-utils';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState<string | null>(null);
+
+  const handleExport = async (reportId: string, format: 'CSV' | 'EXCEL' | 'PDF') => {
+    const loadKey = `${reportId}-${format}`;
+    setLoading(loadKey);
+    try {
+        let data: any[] = [];
+        let title = '';
+        let fileName = '';
+
+        if (reportId === 'daily') {
+            const res = await dataService.getClaims({ startDate: new Date().toISOString().split('T')[0] });
+            data = res.data || [];
+            title = 'Daily Verification Report';
+            fileName = `daily-report-${new Date().toISOString().split('T')[0]}`;
+        } else if (reportId === 'facility') {
+            const res = await dataService.getFacilities();
+            data = res.data || [];
+            title = 'Facility Performance Report';
+            fileName = 'facility-performance-report';
+        } else if (reportId === 'productivity') {
+            const res = await dataService.getVerificationDashboard();
+            data = (res.data as any)?.officerMetrics || [];
+            title = 'Counter Productivity Report';
+            fileName = 'productivity-report';
+        }
+
+        if (data.length === 0) {
+            alert('No data available for this report.');
+            setLoading(null);
+            return;
+        }
+
+        if (format === 'CSV') downloadCSV(data as any, `${fileName}.csv`);
+        else if (format === 'EXCEL') downloadExcel(data as any, `${fileName}.xlsx`);
+        else if (format === 'PDF') downloadPDF(data as any, title, `${fileName}.pdf`);
+
+    } catch (err) {
+        console.error(err);
+    } finally {
+        setLoading(null);
+    }
+  };
 
   const reports = [
     {
@@ -37,54 +87,26 @@ export default function ReportsPage() {
       title: 'Daily Verification Report',
       description: 'Summary of all verifications processed today.',
       icon: Calendar,
-      action: async () => {
-        setLoading('daily');
-        const { data } = await dataService.getClaims({ startDate: new Date().toISOString().split('T')[0] });
-        if (data) {
-          const csv = convertToCSV(data);
-          downloadCSV(csv, `daily-report-${new Date().toISOString().split('T')[0]}.csv`);
-        }
-        setLoading(null);
-      }
     },
     {
       id: 'facility',
       title: 'Facility Performance Report',
       description: 'Verification outcomes grouped by healthcare facility.',
       icon: Building2,
-      action: async () => {
-        setLoading('facility');
-        const { data } = await dataService.getFacilities();
-        if (data) {
-          const csv = convertToCSV(data);
-          downloadCSV(csv, 'facility-performance-report.csv');
-        }
-        setLoading(null);
-      }
     },
     {
       id: 'productivity',
       title: 'Counter Productivity Report',
       description: 'Performance metrics for all technical officers.',
       icon: Users,
-      action: async () => {
-        setLoading('productivity');
-        // This would typically call a specific reporting endpoint
-        const { data } = await dataService.getVerificationDashboard();
-        if (data?.officerMetrics) {
-          const csv = convertToCSV(data.officerMetrics);
-          downloadCSV(csv, 'productivity-report.csv');
-        }
-        setLoading(null);
-      }
     }
   ];
 
   return (
     <div className="space-y-8 p-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reporting Module</h1>
-        <p className="text-slate-500 mt-2">Generate and export operational reports for the RSSB pilot.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Advanced Reporting Center</h1>
+        <p className="text-slate-500 mt-2">Generate, schedule, and export comprehensive operational and financial reports.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -98,18 +120,29 @@ export default function ReportsPage() {
               <CardDescription>{report.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                onClick={report.action}
-                className="w-full"
-                disabled={loading !== null}
-              >
-                {loading === report.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <FileDown className="h-4 w-4 mr-2" />
-                )}
-                Export CSV
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button className="w-full" disabled={loading !== null && (loading as string).startsWith(report.id)}>
+                        {loading && (loading as string).startsWith(report.id) ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                            <FileDown className="h-4 w-4 mr-2" />
+                        )}
+                        Generate Report
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                    <DropdownMenuItem onClick={() => handleExport(report.id, 'CSV')}>
+                        <FileText className="mr-2 h-4 w-4" /> Export CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport(report.id, 'EXCEL')}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel (XLSX)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport(report.id, 'PDF')}>
+                        <FileText className="mr-2 h-4 w-4" /> Export PDF
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </CardContent>
           </Card>
         ))}
@@ -119,44 +152,16 @@ export default function ReportsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Recent Exports</CardTitle>
-              <CardDescription>A log of your recently generated reports.</CardDescription>
+              <CardTitle>Report Schedules</CardTitle>
+              <CardDescription>Manage automated recurring report exports.</CardDescription>
             </div>
-            <BarChart3 className="h-5 w-5 text-slate-400" />
+            <Button variant="outline" size="sm">Create Schedule</Button>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Report Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Date Generated</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-medium">Daily-Verification-2024-05-20</TableCell>
-                <TableCell>Daily</TableCell>
-                <TableCell>May 20, 2024</TableCell>
-                <TableCell>Completed</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Download</Button>
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-medium">Facility-Monthly-Summary</TableCell>
-                <TableCell>Facility</TableCell>
-                <TableCell>May 18, 2024</TableCell>
-                <TableCell>Completed</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">Download</Button>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+          <div className="text-center py-10 border-2 border-dashed rounded-lg bg-slate-50 text-slate-500">
+             No report schedules configured yet.
+          </div>
         </CardContent>
       </Card>
     </div>
