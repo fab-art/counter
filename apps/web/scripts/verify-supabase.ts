@@ -1,4 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
+import { loadEnvConfig } from '@next/env';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(currentDir, '../../..');
+const isCi = process.env.CI === 'true';
+
+loadEnvConfig(repoRoot);
+
+function failOrWarn(message: string): void {
+  if (isCi) {
+    console.error(message);
+    process.exit(1);
+  }
+
+  console.warn(message);
+  console.warn('⚠️ Continuing local build because Supabase network verification is only strict in CI.');
+}
 
 async function verifySupabaseConnection() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -11,26 +29,26 @@ async function verifySupabaseConnection() {
 
   console.log(`Checking connection to: ${supabaseUrl}`);
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
   try {
-    // Attempt a simple query to verify connection
-    const { error } = await supabase.from('facilities').select('count', { count: 'exact', head: true });
+    const response = await fetch(`${supabaseUrl}/rest/v1/facilities?select=count`, {
+      method: 'HEAD',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        Prefer: 'count=exact',
+      },
+    });
 
-    if (error) {
-      // If the table doesn't exist, it still means we connected to the database
-      if (error.code === 'PGRST116' || error.code === '42P01') {
-        console.log('✅ Supabase connection verified (Table check).');
-      } else {
-        console.error('❌ Supabase connection failed:', error.message);
-        process.exit(1);
-      }
-    } else {
-      console.log('✅ Supabase connection successful.');
+    if (!response.ok) {
+      const message = await response.text();
+      failOrWarn(`❌ Supabase connection failed: ${message || response.statusText}`);
+      return;
     }
-  } catch (err: any) {
-    console.error('❌ Unexpected error during Supabase connection check:', err.message);
-    process.exit(1);
+
+    console.log('✅ Supabase connection successful.');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown network error';
+    failOrWarn(`❌ Unexpected error during Supabase connection check: ${message}`);
   }
 }
 
