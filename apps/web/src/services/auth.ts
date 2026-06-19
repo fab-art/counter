@@ -20,7 +20,11 @@ export const authService = {
 
       if (error) throw error;
 
-      // Supabase handles cookie storage automatically in browser
+      // Set cookie for middleware
+      if (data.session) {
+        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${data.session.expires_in}; SameSite=Lax`;
+      }
+
       return { success: true, user: data.user };
     } catch (error: any) {
       return { success: false, error: error.message };
