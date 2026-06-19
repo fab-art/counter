@@ -11,6 +11,7 @@ import {
   jsonb,
   primaryKey,
   pgEnum,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -37,6 +38,10 @@ export const claimStatusEnum = pgEnum('claim_status', [
   'IN_PROGRESS',
   'VERIFIED',
   'FLAGGED',
+  'UNDER_SUPERVISOR_REVIEW',
+  'SUPERVISOR_APPROVED',
+  'SUPERVISOR_REJECTED',
+  'ESCALATED',
 ]);
 
 export const findingCategoryEnum = pgEnum('finding_category', [
@@ -58,12 +63,29 @@ export const users = pgTable('users', {
   deletedAt: timestamp('deleted_at'),
 });
 
+export const branches = pgTable('branches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  code: varchar('code', { length: 50 }).notNull().unique(),
+  location: text('location'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const branchUsers = pgTable('branch_users', {
+  branchId: uuid('branch_id').references(() => branches.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.branchId, t.userId] }),
+}));
+
 export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   fullName: varchar('full_name', { length: 255 }),
   avatarUrl: text('avatar_url'),
   role: roleEnum('role').default('TECHNICAL_OFFICER').notNull(),
   facilityId: uuid('facility_id').references(() => facilities.id),
+  branchId: uuid('branch_id').references(() => branches.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -101,11 +123,15 @@ export const cases = pgTable('cases', {
   createdById: uuid('created_by_id')
     .references(() => users.id)
     .notNull(),
+  branchId: uuid('branch_id').references(() => branches.id),
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
-});
+}, (t) => ({
+  caseNumberIdx: index('case_number_idx').on(t.caseNumber),
+  branchIdIdx: index('case_branch_id_idx').on(t.branchId),
+}));
 
 export const facilities = pgTable('facilities', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -152,8 +178,118 @@ export const claims = pgTable('claims', {
   duplicateScore: integer('duplicate_score'),
   crossFacilityFlag: boolean('cross_facility_flag').default(false).notNull(),
   crossFacilityScore: integer('cross_facility_score'),
+  riskScore: integer('risk_score').default(0),
+  riskCategory: varchar('risk_category', { length: 50 }),
+  branchId: uuid('branch_id').references(() => branches.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  claimNumberIdx: index('claim_number_idx').on(t.claimNumber),
+  patientIdIdx: index('patient_id_idx').on(t.patientId),
+  branchIdIdx: index('claim_branch_id_idx').on(t.branchId),
+  caseIdIdx: index('claim_case_id_idx').on(t.caseId),
+}));
+
+export const riskRules = pgTable('risk_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  riskLevel: varchar('risk_level', { length: 20 }).notNull(),
+  criteria: jsonb('criteria').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const riskScores = pgTable('risk_scores', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  score: integer('score').notNull(),
+  category: varchar('category', { length: 50 }).notNull(),
+  reasons: jsonb('reasons').$type<string[]>().default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const facilityMetrics = pgTable('facility_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  facilityId: uuid('facility_id').references(() => facilities.id, { onDelete: 'cascade' }).notNull(),
+  metricDate: date('metric_date').notNull(),
+  claimsSubmitted: integer('claims_submitted').default(0).notNull(),
+  claimsApproved: integer('claims_approved').default(0).notNull(),
+  claimsRejected: integer('claims_rejected').default(0).notNull(),
+  claimsFlagged: integer('claims_flagged').default(0).notNull(),
+  totalAmount: numeric('total_amount').$type<number>().default(0).notNull(),
+  deductionAmount: numeric('deduction_amount').$type<number>().default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const medicineMetrics = pgTable('medicine_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  medicineCode: varchar('medicine_code', { length: 100 }).notNull(),
+  medicineName: varchar('medicine_name', { length: 255 }).notNull(),
+  metricDate: date('metric_date').notNull(),
+  utilizationCount: integer('utilization_count').default(0).notNull(),
+  flaggedCount: integer('flagged_count').default(0).notNull(),
+  rejectedCount: integer('rejected_count').default(0).notNull(),
+  totalCost: numeric('total_cost').$type<number>().default(0).notNull(),
+  totalDeductions: numeric('total_deductions').$type<number>().default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const reportSchedules = pgTable('report_schedules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  reportType: varchar('report_type', { length: 100 }).notNull(),
+  frequency: varchar('frequency', { length: 20 }).notNull(),
+  lastRun: timestamp('last_run'),
+  nextRun: timestamp('next_run'),
+  recipients: jsonb('recipients').$type<string[]>().default([]).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const imports = pgTable('imports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  totalRecords: integer('total_records').default(0).notNull(),
+  processedRecords: integer('processed_records').default(0).notNull(),
+  errorCount: integer('error_count').default(0).notNull(),
+  createdBy: uuid('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+});
+
+export const importBatches = pgTable('import_batches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  importId: uuid('import_id').references(() => imports.id, { onDelete: 'cascade' }).notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const importErrors = pgTable('import_errors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  importId: uuid('import_id').references(() => imports.id, { onDelete: 'cascade' }).notNull(),
+  rowNumber: integer('row_number').notNull(),
+  errorMessage: text('error_message').notNull(),
+  rawData: jsonb('raw_data'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const reviewDecisions = pgTable('review_decisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  reviewerId: uuid('reviewer_id').references(() => users.id).notNull(),
+  decision: varchar('decision', { length: 50 }).notNull(), // APPROVED, REJECTED, ESCALATED
+  comment: text('comment'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const reviewComments = pgTable('review_comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  comment: text('comment').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const verificationQueue = pgTable('verification_queue', {
@@ -191,7 +327,10 @@ export const findings = pgTable('findings', {
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => ({
+  claimIdIdx: index('finding_claim_id_idx').on(t.claimId),
+  caseIdIdx: index('finding_case_id_idx').on(t.caseId),
+}));
 
 export const claimVerificationSummary = pgTable('claim_verification_summary', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -231,7 +370,11 @@ export const auditLogs = pgTable('audit_logs', {
   ipAddress: varchar('ip_address', { length: 45 }),
   userAgent: text('user_agent'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => ({
+  userIdIdx: index('audit_user_id_idx').on(t.userId),
+  actionIdx: index('audit_action_idx').on(t.action),
+  entityIdx: index('audit_entity_idx').on(t.entityType, t.entityId),
+}));
 
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -262,6 +405,18 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(notifications),
   auditLogs: many(auditLogs),
   officerMetrics: many(officerMetrics),
+  branchUsers: many(branchUsers),
+}));
+
+export const branchesRelations = relations(branches, ({ many }) => ({
+  branchUsers: many(branchUsers),
+  cases: many(cases),
+  claims: many(claims),
+}));
+
+export const branchUsersRelations = relations(branchUsers, ({ one }) => ({
+  branch: one(branches, { fields: [branchUsers.branchId], references: [branches.id] }),
+  user: one(users, { fields: [branchUsers.userId], references: [users.id] }),
 }));
 
 export const rolesRelations = relations(roles, ({ many }) => ({
@@ -290,6 +445,7 @@ export const casesRelations = relations(cases, ({ one, many }) => ({
     references: [users.id],
     relationName: 'createdBy',
   }),
+  branch: one(branches, { fields: [cases.branchId], references: [branches.id] }),
   claims: many(claims),
   findings: many(findings),
 }));
@@ -307,6 +463,7 @@ export const claimsRelations = relations(claims, ({ one, many }) => ({
     fields: [claims.facilityId],
     references: [facilities.id],
   }),
+  branch: one(branches, { fields: [claims.branchId], references: [branches.id] }),
   findings: many(findings),
   verificationResult: one(verificationResults, {
     fields: [claims.id],
@@ -316,6 +473,9 @@ export const claimsRelations = relations(claims, ({ one, many }) => ({
     fields: [claims.id],
     references: [claimVerificationSummary.claimId],
   }),
+  riskScores: many(riskScores),
+  reviewDecisions: many(reviewDecisions),
+  reviewComments: many(reviewComments),
 }));
 
 export const findingsRelations = relations(findings, ({ one }) => ({
@@ -344,5 +504,20 @@ export const officerMetricsRelations = relations(officerMetrics, ({ one }) => ({
   user: one(users, {
     fields: [officerMetrics.officerId],
     references: [users.id],
+  }),
+}));
+
+export const profilesRelations = relations(profiles, ({ one }) => ({
+  user: one(users, {
+    fields: [profiles.id],
+    references: [users.id],
+  }),
+  facility: one(facilities, {
+    fields: [profiles.facilityId],
+    references: [facilities.id],
+  }),
+  branch: one(branches, {
+    fields: [profiles.branchId],
+    references: [branches.id],
   }),
 }));
