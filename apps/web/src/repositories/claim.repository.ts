@@ -41,11 +41,9 @@ export const claimRepository = {
     if (filters.startDate) query = query.gte('dispensing_date', filters.startDate);
     if (filters.endDate) query = query.lte('dispensing_date', filters.endDate);
 
-    if (filters.offset !== undefined) {
-        query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
-    } else if (filters.limit) {
-        query = query.limit(filters.limit);
-    }
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query.order('created_at', { ascending: false });
 

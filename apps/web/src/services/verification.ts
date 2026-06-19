@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import { auditService } from './audit';
-import { findingSchema } from '@/lib/validations';
+import { findingSchema, claimSchema } from '@/lib/validations';
+import { z } from 'zod';
 import type {
   Claim,
   ClaimVerificationDetail,
@@ -224,6 +225,18 @@ export const verificationService = {
   },
 
   async updateClaimStatus(claimId: string, status: Claim['status'], userId?: string): Promise<Claim> {
+    // Validate status
+    z.enum([
+      'UNREVIEWED',
+      'IN_PROGRESS',
+      'VERIFIED',
+      'FLAGGED',
+      'UNDER_SUPERVISOR_REVIEW',
+      'SUPERVISOR_APPROVED',
+      'SUPERVISOR_REJECTED',
+      'ESCALATED',
+    ]).parse(status);
+
     // Get old value for audit
     const { data: oldData } = await supabase
       .from('claims')

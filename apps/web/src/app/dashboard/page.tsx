@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Card,
   CardContent,
@@ -16,6 +17,8 @@ import {
   Activity,
   Loader2
 } from 'lucide-react';
+import { dataService } from '@/services/data';
+
 import {
   BarChart,
   Bar,
@@ -28,7 +31,9 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { dataService } from '@/services/data';
+
+const DynamicBarChart = dynamic(() => Promise.resolve(BarChart), { ssr: false });
+const DynamicPieChart = dynamic(() => Promise.resolve(PieChart), { ssr: false });
 
 const categoryData = [
   { name: 'Pharmacology', value: 2400000, color: '#4f46e5' },
@@ -136,7 +141,7 @@ export default function DashboardPage() {
           <CardContent className="h-[300px]">
             {officerData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={officerData}>
+                <DynamicBarChart data={officerData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" />
                   <YAxis yAxisId="left" orientation="left" stroke="#4f46e5" />
@@ -144,7 +149,7 @@ export default function DashboardPage() {
                   <Tooltip />
                   <Bar yAxisId="left" dataKey="claims" name="Claims Reviewed" fill="#4f46e5" radius={[4, 4, 0, 0]} />
                   <Bar yAxisId="right" dataKey="deductions" name="Deductions (RWF)" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                </DynamicBarChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-400">
@@ -161,7 +166,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+              <DynamicPieChart>
                 <Pie
                   data={categoryData}
                   cx="50%"
@@ -176,9 +181,9 @@ export default function DashboardPage() {
                   ))}
                 </Pie>
                 <Tooltip
-                   formatter={(value: number) => `${value.toLocaleString()} RWF`}
+                   formatter={(value: any) => `${(value as number).toLocaleString()} RWF`}
                 />
-              </PieChart>
+              </DynamicPieChart>
             </ResponsiveContainer>
             <div className="flex justify-center gap-4 mt-4">
                {categoryData.map((item) => (

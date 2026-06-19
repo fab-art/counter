@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { verificationService, Finding } from '@/services/verification';
 import { supabase } from '@/lib/supabase';
+import { useOfflineSync } from '@/lib/offline-sync';
 import {
   Card,
   CardHeader,
@@ -128,63 +129,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
     fetchClaimData();
   }, [claimId]);
 
-  const handleSync = async () => {
-    if (!navigator.onLine) return;
-
-    let syncPerformed = false;
-
-    const offlineFindings = JSON.parse(localStorage.getItem('offline_findings_queue') || '[]');
-    if (offlineFindings.length > 0) {
-      toast.info('Back online. Synchronizing data...');
-      const remainingFindings = [];
-      for (const finding of offlineFindings) {
-        try {
-          await verificationService.createFinding(finding);
-          syncPerformed = true;
-        } catch (e) {
-          console.error('Failed to sync finding:', e);
-          remainingFindings.push(finding);
-        }
-      }
-      if (remainingFindings.length > 0) {
-        localStorage.setItem('offline_findings_queue', JSON.stringify(remainingFindings));
-      } else {
-        localStorage.removeItem('offline_findings_queue');
-      }
-    }
-
-    const offlineUpdates = JSON.parse(localStorage.getItem('offline_status_updates') || '{}');
-    const remainingUpdates: Record<string, string> = {};
-    const updateEntries = Object.entries(offlineUpdates);
-
-    if (updateEntries.length > 0) {
-      for (const [id, status] of updateEntries) {
-        try {
-          await verificationService.updateClaimStatus(id, status as any);
-          syncPerformed = true;
-        } catch (e) {
-          console.error('Failed to sync status update:', e);
-          remainingUpdates[id] = status as string;
-        }
-      }
-      if (Object.keys(remainingUpdates).length > 0) {
-        localStorage.setItem('offline_status_updates', JSON.stringify(remainingUpdates));
-      } else {
-        localStorage.removeItem('offline_status_updates');
-      }
-    }
-
-    if (syncPerformed) {
-      fetchClaimData();
-      toast.success('Synchronization complete');
-    }
-  };
-
-  useEffect(() => {
-    handleSync();
-    window.addEventListener('online', handleSync);
-    return () => window.removeEventListener('online', handleSync);
-  }, []);
+  const { queueFinding, queueStatusUpdate } = useOfflineSync(fetchClaimData);
 
   const totalAdjustments = findings.reduce((sum, f) => sum + f.adjustment, 0);
   const verifiedAmount = (claim?.insurance_copayment || 0) - totalAdjustments;
@@ -215,10 +160,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
         await verificationService.createFinding(findingData);
         toast.success('Finding recorded in database');
       } else {
-        const offlineQueue = JSON.parse(localStorage.getItem('offline_findings_queue') || '[]');
-        offlineQueue.push(findingData);
-        localStorage.setItem('offline_findings_queue', JSON.stringify(offlineQueue));
-        toast.info('Finding saved locally (offline mode)');
+        queueFinding(findingData);
       }
 
       await fetchClaimData();
@@ -260,10 +202,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
         await verificationService.updateClaimStatus(claimId, status, userId);
         toast.success(`Claim ${status.toLowerCase()} successfully`);
       } else {
-        const offlineUpdates = JSON.parse(localStorage.getItem('offline_status_updates') || '{}');
-        offlineUpdates[claimId] = status;
-        localStorage.setItem('offline_status_updates', JSON.stringify(offlineUpdates));
-        toast.info('Verification queued for sync (offline mode)');
+        queueStatusUpdate(claimId, status);
       }
 
       // Redirect back after short delay

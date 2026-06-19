@@ -1,0 +1,17 @@
+{
+  "name": "RSSB Pharmacy Counter Verification Platform",
+  "short_name": "RSSB Verification",
+  "description": "Enterprise platform for pharmacy counter verification and audit.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/globe.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

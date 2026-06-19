@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
+import { uploadSchema, claimSchema } from '@/lib/validations';
 
 type Tables = Database['public']['Tables'];
 
@@ -32,15 +33,20 @@ export const dataService = {
     status?: string;
     startDate?: string;
     endDate?: string;
-  } = {}, limit = 50) {
+    offset?: number;
+    limit?: number;
+  } = {}) {
     try {
+      const limit = filters.limit || 50;
+      const offset = filters.offset || 0;
+
       let query = supabase
         .from('claims')
         .select(`
           *,
           facilities(name),
           verification_results(status, score)
-        `);
+        `, { count: 'exact' });
 
       if (filters.claimNumber) {
         query = query.ilike('claim_number', `%${filters.claimNumber}%`);
@@ -61,12 +67,12 @@ export const dataService = {
         query = query.lte('dispensing_date', filters.endDate);
       }
 
-      const { data, error } = await query
-        .limit(limit)
+      const { data, error, count } = await query
+        .range(offset, offset + limit - 1)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return { data: data as any[], error: null };
+      return { data: data as any[], count, error: null };
     } catch (error: any) {
       console.error('Error fetching claims:', error);
       return { data: null, error: error.message };
@@ -137,6 +143,15 @@ export const dataService = {
    */
   async createUpload(upload: Tables['uploads']['Insert']) {
     try {
+      uploadSchema.parse({
+        fileName: upload.file_name,
+        filePath: upload.file_path,
+        fileSize: upload.file_size,
+        status: upload.status,
+        uploadedBy: upload.uploaded_by,
+        facilityId: upload.facility_id,
+      });
+
       const { data, error } = await (supabase
         .from('uploads') as any)
         .insert(upload)
@@ -156,6 +171,16 @@ export const dataService = {
    */
   async createClaim(claim: Tables['claims']['Insert']) {
     try {
+      claimSchema.parse({
+        claimNumber: claim.claim_number,
+        patientName: claim.patient_name,
+        patientId: claim.patient_id,
+        totalAmount: claim.total_amount,
+        facilityId: claim.facility_id,
+        caseId: claim.case_id,
+        status: claim.status,
+      });
+
       const { data, error } = await (supabase
         .from('claims') as any)
         .insert(claim)

@@ -188,6 +188,9 @@ export const claims = pgTable('claims', {
   patientIdIdx: index('patient_id_idx').on(t.patientId),
   branchIdIdx: index('claim_branch_id_idx').on(t.branchId),
   caseIdIdx: index('claim_case_id_idx').on(t.caseId),
+  statusIdx: index('claim_status_idx').on(t.status),
+  facilityIdIdx: index('claim_facility_id_idx').on(t.facilityId),
+  createdAtIdx: index('claim_created_at_idx').on(t.createdAt),
 }));
 
 export const riskRules = pgTable('risk_rules', {
