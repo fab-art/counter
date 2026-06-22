@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -79,7 +79,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
     adjustment: 0
   });
 
-  const fetchClaimData = async () => {
+  const fetchClaimData = useCallback(async () => {
     setLoading(true);
     try {
       const { data: claimData, error: claimError } = await supabase
@@ -123,11 +123,11 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
     } finally {
       setLoading(false);
     }
-  }
+  }, [claimId]);
 
   useEffect(() => {
     fetchClaimData();
-  }, [claimId]);
+  }, [claimId, fetchClaimData]);
 
   const { queueFinding, queueStatusUpdate } = useOfflineSync(fetchClaimData);
 
@@ -210,8 +210,8 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
         window.location.href = `/cases/${caseId}/verification`;
       }, 2000);
 
-    } catch (error: any) {
-      toast.error('Failed to submit verification: ' + error.message);
+    } catch (err: any) {
+      toast.error('Failed to submit verification: ' + err.message);
     } finally {
       setSubmitting(false);
     }

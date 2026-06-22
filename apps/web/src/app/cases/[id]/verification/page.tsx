@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -56,7 +56,7 @@ export default function VerificationQueuePage({ params }: { params: { id: string
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<VerificationStats | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [fetchedStats, fetchedQueue] = await Promise.all([
@@ -84,14 +84,14 @@ export default function VerificationQueuePage({ params }: { params: { id: string
     } finally {
       setLoading(false);
     }
-  };
+  }, [caseId, searchTerm, patientIdSearch, statusFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchData();
     }, 500);
     return () => clearTimeout(timer);
-  }, [caseId, searchTerm, patientIdSearch, statusFilter]);
+  }, [fetchData]);
 
   const formatCurrency = (value: number): string => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'RWF' }).format(value);
