@@ -179,6 +179,24 @@ export interface Database {
         Update: { id?: string; claim_id?: string; medicine_code?: string; medicine_name?: string; quantity?: number; unit_price?: number; total_price?: number }
         Relationships: []
       }
+      investigations: {
+        Row: { id: string; claim_id: string; case_id: string; status: Database['public']['Enums']['investigation_status']; priority: string; assigned_to_id: string | null; findings: string | null; evidence_urls: string[] | null; created_at: string; updated_at: string }
+        Insert: { id?: string; claim_id: string; case_id: string; status?: Database['public']['Enums']['investigation_status']; priority?: string; assigned_to_id?: string | null; findings?: string | null; evidence_urls?: string[] | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; claim_id?: string; case_id?: string; status?: Database['public']['Enums']['investigation_status']; priority?: string; assigned_to_id?: string | null; findings?: string | null; evidence_urls?: string[] | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      fraud_alerts: {
+        Row: { id: string; claim_id: string; rule_id: string | null; score: number; status: string; created_at: string }
+        Insert: { id?: string; claim_id: string; rule_id?: string | null; score: number; status?: string; created_at?: string }
+        Update: { id?: string; claim_id?: string; rule_id?: string | null; score?: number; status?: string; created_at?: string }
+        Relationships: []
+      }
+      task_assignments: {
+        Row: { id: string; case_id: string | null; claim_id: string | null; assigned_to_id: string; assigned_by_id: string; status: Database['public']['Enums']['task_status']; due_date: string | null; completed_at: string | null; notes: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; case_id?: string | null; claim_id?: string | null; assigned_to_id: string; assigned_by_id: string; status?: Database['public']['Enums']['task_status']; due_date?: string | null; completed_at?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; case_id?: string | null; claim_id?: string | null; assigned_to_id?: string; assigned_by_id?: string; status?: Database['public']['Enums']['task_status']; due_date?: string | null; completed_at?: string | null; notes?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -187,10 +205,12 @@ export interface Database {
       [_ in never]: never
     }
     Enums: {
-      role: 'ADMIN' | 'MANAGER' | 'LEAD_OFFICER' | 'TECHNICAL_OFFICER' | 'COMPLIANCE_OFFICER'
+      role: 'ADMIN' | 'MANAGER' | 'TEAM_LEAD' | 'OFFICER' | 'AUDITOR'
       case_status: 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'COMPLETED' | 'REJECTED'
       claim_status: 'UNREVIEWED' | 'IN_PROGRESS' | 'VERIFIED' | 'FLAGGED' | 'UNDER_SUPERVISOR_REVIEW' | 'SUPERVISOR_APPROVED' | 'SUPERVISOR_REJECTED' | 'ESCALATED'
       finding_category: 'PHARMACOLOGY' | 'RSSB_RULES' | 'FRAUD' | 'DOCUMENTATION'
+      investigation_status: 'OPEN' | 'UNDER_REVIEW' | 'ESCALATED' | 'CLOSED'
+      task_status: 'PENDING' | 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
     }
     CompositeTypes: {
       [_ in never]: never

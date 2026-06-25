@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { verificationService, Finding } from '@/services/verification';
 import { supabase } from '@/lib/supabase';
+import { claimRepository } from '@/repositories/claim.repository';
+import { findingRepository } from '@/repositories/finding.repository';
 import { useOfflineSync } from '@/lib/offline-sync';
 import {
   Card,
@@ -82,36 +84,11 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   const fetchClaimData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: claimData, error: claimError } = await supabase
-        .from('claims')
-        .select('*')
-        .eq('id', claimId)
-        .single();
+      const claimData = await claimRepository.findById(claimId);
+      setClaim(claimData);
 
-      if (claimError) {
-        setClaim({
-          id: claimId,
-          claim_number: 'CLM-001',
-          paper_code: 'PC-99821',
-          patient_name: 'Jean Paul',
-          rama_number: '201-009283-01',
-          practitioner_name: 'Dr. Karekezi',
-          service_date: '2024-02-15',
-          total_cost: 25000,
-          patient_copayment: 3750,
-          insurance_copayment: 21250,
-          status: 'IN_PROGRESS'
-        });
-      } else {
-        setClaim(claimData);
-      }
-
-      const { data: findingsData, error: findingsError } = await supabase
-        .from('findings')
-        .select('*')
-        .eq('claim_id', claimId);
-
-      if (!findingsError && findingsData) {
+      const findingsData = await findingRepository.findByClaimId(claimId);
+      if (findingsData) {
         setFindings(findingsData.map((f: any) => ({
            id: f.id,
            category: f.category,
@@ -120,6 +97,9 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
            adjustment: f.adjustment_amount
         })));
       }
+    } catch (error: any) {
+      console.error('Error fetching claim data:', error);
+      toast.error('Failed to load claim data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -174,7 +154,7 @@ export default function ClaimReviewPage({ params }: { params: { id: string, clai
   const removeFinding = async (id: string | number) => {
     try {
       if (typeof id === 'string') {
-        await supabase.from('findings').delete().eq('id', id);
+        await findingRepository.delete(id);
         await fetchClaimData();
       } else {
         setFindings(findings.filter(f => f.id !== id));

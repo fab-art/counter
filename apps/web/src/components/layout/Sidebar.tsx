@@ -22,7 +22,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: Briefcase, label: 'Cases', href: '/cases' },
   { icon: Users, label: 'Users', href: '/users', roles: ['ADMIN', 'MANAGER'] },
-  { icon: FileText, label: 'Reports', href: '/reports', roles: ['ADMIN', 'MANAGER', 'LEAD_OFFICER'] },
+  { icon: FileText, label: 'Reports', href: '/reports', roles: ['ADMIN', 'MANAGER', 'TEAM_LEAD'] },
   { icon: Settings, label: 'Settings', href: '/settings', roles: ['ADMIN'] },
 ];
 

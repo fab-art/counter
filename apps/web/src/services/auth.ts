@@ -57,10 +57,10 @@ export const authService = {
         .single();
 
       if (error) throw error;
-      return (data as any)?.roles?.name || 'TECHNICAL_OFFICER';
+      return (data as any)?.roles?.name || 'OFFICER';
     } catch (error) {
       console.error('Error fetching user role:', error);
-      return 'TECHNICAL_OFFICER'; // Default role
+      return 'OFFICER'; // Default role
     }
   },
 

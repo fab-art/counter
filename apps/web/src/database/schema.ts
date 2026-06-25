@@ -19,9 +19,9 @@ import { relations } from 'drizzle-orm';
 export const roleEnum = pgEnum('role', [
   'ADMIN',
   'MANAGER',
-  'LEAD_OFFICER',
-  'TECHNICAL_OFFICER',
-  'COMPLIANCE_OFFICER',
+  'TEAM_LEAD',
+  'OFFICER',
+  'AUDITOR',
 ]);
 
 export const caseStatusEnum = pgEnum('case_status', [
@@ -49,6 +49,21 @@ export const findingCategoryEnum = pgEnum('finding_category', [
   'RSSB_RULES',
   'FRAUD',
   'DOCUMENTATION',
+]);
+
+export const investigationStatusEnum = pgEnum('investigation_status', [
+  'OPEN',
+  'UNDER_REVIEW',
+  'ESCALATED',
+  'CLOSED',
+]);
+
+export const taskStatusEnum = pgEnum('task_status', [
+  'PENDING',
+  'ACCEPTED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
 ]);
 
 // Tables
@@ -83,7 +98,7 @@ export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   fullName: varchar('full_name', { length: 255 }),
   avatarUrl: text('avatar_url'),
-  role: roleEnum('role').default('TECHNICAL_OFFICER').notNull(),
+  role: roleEnum('role').default('OFFICER').notNull(),
   facilityId: uuid('facility_id').references(() => facilities.id),
   branchId: uuid('branch_id').references(() => branches.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -392,6 +407,77 @@ export const notifications = pgTable('notifications', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const referenceMedicines = pgTable('reference_medicines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: varchar('code', { length: 100 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  unitPrice: numeric('unit_price').$type<number>().notNull(),
+  category: varchar('category', { length: 100 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const verificationBatches = pgTable('verification_batches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  createdById: uuid('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const claimMedicines = pgTable('claim_medicines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  medicineCode: varchar('medicine_code', { length: 100 }).notNull(),
+  medicineName: varchar('medicine_name', { length: 255 }).notNull(),
+  quantity: numeric('quantity').$type<number>().notNull(),
+  unitPrice: numeric('unit_price').$type<number>().notNull(),
+  totalPrice: numeric('total_price').$type<number>().notNull(),
+});
+
+export const investigations = pgTable('investigations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  caseId: uuid('case_id').references(() => cases.id, { onDelete: 'cascade' }).notNull(),
+  status: investigationStatusEnum('status').default('OPEN').notNull(),
+  priority: varchar('priority', { length: 20 }).default('MEDIUM').notNull(),
+  assignedToId: uuid('assigned_to_id').references(() => users.id),
+  findings: text('findings'),
+  evidenceUrls: jsonb('evidence_urls').$type<string[]>().default([]),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  claimIdIdx: index('investigation_claim_id_idx').on(t.claimId),
+  caseIdIdx: index('investigation_case_id_idx').on(t.caseId),
+}));
+
+export const fraudAlerts = pgTable('fraud_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }).notNull(),
+  ruleId: uuid('rule_id').references(() => riskRules.id),
+  score: integer('score').notNull(),
+  status: varchar('status', { length: 50 }).default('NEW').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  claimIdIdx: index('fraud_alert_claim_id_idx').on(t.claimId),
+}));
+
+export const taskAssignments = pgTable('task_assignments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  caseId: uuid('case_id').references(() => cases.id, { onDelete: 'cascade' }),
+  claimId: uuid('claim_id').references(() => claims.id, { onDelete: 'cascade' }),
+  assignedToId: uuid('assigned_to_id').references(() => users.id).notNull(),
+  assignedById: uuid('assigned_by_id').references(() => users.id).notNull(),
+  status: taskStatusEnum('status').default('PENDING').notNull(),
+  dueDate: timestamp('due_date'),
+  completedAt: timestamp('completed_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  caseIdIdx: index('task_case_id_idx').on(t.caseId),
+  assignedToIdx: index('task_assigned_to_idx').on(t.assignedToId),
+}));
+
 export const systemSettings = pgTable('system_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   key: varchar('key', { length: 100 }).notNull().unique(),
@@ -409,6 +495,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   auditLogs: many(auditLogs),
   officerMetrics: many(officerMetrics),
   branchUsers: many(branchUsers),
+  investigations: many(investigations),
+  assignedTasks: many(taskAssignments, { relationName: 'assignedTo' }),
+  createdTasks: many(taskAssignments, { relationName: 'assignedBy' }),
+  verificationBatches: many(verificationBatches),
 }));
 
 export const branchesRelations = relations(branches, ({ many }) => ({
@@ -451,6 +541,8 @@ export const casesRelations = relations(cases, ({ one, many }) => ({
   branch: one(branches, { fields: [cases.branchId], references: [branches.id] }),
   claims: many(claims),
   findings: many(findings),
+  investigations: many(investigations),
+  tasks: many(taskAssignments),
 }));
 
 export const claimsRelations = relations(claims, ({ one, many }) => ({
@@ -479,6 +571,10 @@ export const claimsRelations = relations(claims, ({ one, many }) => ({
   riskScores: many(riskScores),
   reviewDecisions: many(reviewDecisions),
   reviewComments: many(reviewComments),
+  investigations: many(investigations),
+  fraudAlerts: many(fraudAlerts),
+  tasks: many(taskAssignments),
+  medicines: many(claimMedicines),
 }));
 
 export const findingsRelations = relations(findings, ({ one }) => ({
@@ -523,4 +619,31 @@ export const profilesRelations = relations(profiles, ({ one }) => ({
     fields: [profiles.branchId],
     references: [branches.id],
   }),
+}));
+
+export const investigationsRelations = relations(investigations, ({ one }) => ({
+  claim: one(claims, { fields: [investigations.claimId], references: [claims.id] }),
+  case: one(cases, { fields: [investigations.caseId], references: [cases.id] }),
+  assignedTo: one(users, { fields: [investigations.assignedToId], references: [users.id] }),
+}));
+
+export const fraudAlertsRelations = relations(fraudAlerts, ({ one }) => ({
+  claim: one(claims, { fields: [fraudAlerts.claimId], references: [claims.id] }),
+  rule: one(riskRules, { fields: [fraudAlerts.ruleId], references: [riskRules.id] }),
+}));
+
+export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => ({
+  case: one(cases, { fields: [taskAssignments.caseId], references: [cases.id] }),
+  claim: one(claims, { fields: [taskAssignments.claimId], references: [claims.id] }),
+  assignedTo: one(users, { fields: [taskAssignments.assignedToId], references: [users.id] }),
+  assignedBy: one(users, { fields: [taskAssignments.assignedById], references: [users.id] }),
+}));
+
+export const verificationBatchesRelations = relations(verificationBatches, ({ one, many }) => ({
+  createdBy: one(users, { fields: [verificationBatches.createdById], references: [users.id] }),
+  queueItems: many(verificationQueue),
+}));
+
+export const claimMedicinesRelations = relations(claimMedicines, ({ one }) => ({
+  claim: one(claims, { fields: [claimMedicines.claimId], references: [claims.id] }),
 }));

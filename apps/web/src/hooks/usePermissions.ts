@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { authService } from '@/services/auth';
 
-export type Role = 'ADMIN' | 'MANAGER' | 'LEAD_OFFICER' | 'TECHNICAL_OFFICER' | 'COMPLIANCE_OFFICER';
+export type Role = 'ADMIN' | 'MANAGER' | 'TEAM_LEAD' | 'OFFICER' | 'AUDITOR';
 
 export function usePermissions() {
   const [role, setRole] = useState<Role | null>(null);
@@ -28,7 +28,7 @@ export function usePermissions() {
 
   const isAdmin = role === 'ADMIN';
   const isManager = role === 'MANAGER' || role === 'ADMIN';
-  const isOfficer = role === 'TECHNICAL_OFFICER' || role === 'LEAD_OFFICER' || role === 'ADMIN';
+  const isOfficer = role === 'OFFICER' || role === 'TEAM_LEAD' || role === 'ADMIN';
 
   return { role, loading, hasPermission, isAdmin, isManager, isOfficer };
 }

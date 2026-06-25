@@ -6,7 +6,7 @@ describe('RBAC Guards', () => {
     expect(hasPermission('ADMIN' as Role, 'MANAGE_USERS')).toBe(true);
   });
 
-  it('should not allow TECHNICAL_OFFICER to manage users', () => {
-    expect(hasPermission('TECHNICAL_OFFICER' as Role, 'MANAGE_USERS')).toBe(false);
+  it('should not allow OFFICER to manage users', () => {
+    expect(hasPermission('OFFICER' as Role, 'MANAGE_USERS')).toBe(false);
   });
 });
