@@ -15,7 +15,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { dataService } from '@/services/data';
 
 export default function ExecutiveAnalytics() {
   const [stats, setStats] = useState<any>({
@@ -28,16 +28,20 @@ export default function ExecutiveAnalytics() {
   useEffect(() => {
     async function fetchStats() {
       // Aggregate data for executive view
-      const { data: claims } = await supabase.from('claims').select('id, total_amount, insurance_copayment');
-      const { count: facilities } = await supabase.from('facilities').select('*', { count: 'exact', head: true });
+      // NOTE: In a real production app, this should be done via a server-side aggregation or RPC
+      const [claimsRes, facilitiesRes] = await Promise.all([
+        dataService.getClaims({ limit: 5000 }), // Increased limit for better accuracy in mock-like scenarios
+        dataService.getFacilities()
+      ]);
 
-      const total = claims?.length || 0;
-      const savings = (claims as any[])?.reduce((sum, c) => sum + (Number(c.total_amount || 0) - (Number(c.insurance_copayment || 0))), 0) || 0;
+      const total = claimsRes.count || 0;
+      // Ideally, total savings should be calculated from 'claim_verification_summary' for all claims
+      const savings = (claimsRes.data as any[])?.reduce((sum, c) => sum + (Number(c.total_amount || 0) - (Number(c.insurance_copayment || 0))), 0) || 0;
 
       setStats({
         totalClaims: total,
         totalSavings: savings,
-        activeFacilities: facilities || 0,
+        activeFacilities: (facilitiesRes.data as any[])?.length || 0,
         accuracyRate: 98.4
       });
     }

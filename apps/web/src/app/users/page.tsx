@@ -17,9 +17,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 const users = [
   { id: '1', name: 'John Doe', email: 'john@example.com', role: 'ADMIN', status: 'ACTIVE' },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'TECHNICAL_OFFICER', status: 'ACTIVE' },
+  { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'OFFICER', status: 'ACTIVE' },
   { id: '3', name: 'Robert Brown', email: 'robert@example.com', role: 'MANAGER', status: 'INACTIVE' },
-  { id: '4', name: 'Alice White', email: 'alice@example.com', role: 'COMPLIANCE_OFFICER', status: 'ACTIVE' },
+  { id: '4', name: 'Alice White', email: 'alice@example.com', role: 'AUDITOR', status: 'ACTIVE' },
 ];
 
 export default function UsersPage() {
